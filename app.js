@@ -1606,6 +1606,15 @@ function selectRomForInspection(game, element) {
   // Config default cartridge image as fallback
   const fallbackImg = consoleData[activeConsole].config.defaultCart;
 
+  const isSqlite = currentProfile.metadataStorage === 'sqlite';
+  const cols = isSqlite && currentProfile.sqliteConfig ? currentProfile.sqliteConfig.columns : null;
+
+  function getFieldAttrs(fieldKey) {
+    if (!isSqlite) return "";
+    if (cols && cols[fieldKey]) return "";
+    return 'disabled placeholder="Sistem desteklemediği için kaydedilemez" style="opacity: 0.5; cursor: not-allowed; border: 1px dashed rgba(255, 56, 96, 0.4)" title="Bu cihaz profili bu alanı desteklememektedir."';
+  }
+
   inspectorPanel.innerHTML = `
     <div class="inspector-header">
       <h3 class="inspector-title">ROM Detayları</h3>
@@ -1637,45 +1646,45 @@ function selectRomForInspection(game, element) {
       <div class="meta-form">
         <div class="form-field">
           <label class="form-label">Oyun Adı</label>
-          <input type="text" class="form-input" id="inp-meta-title" value="${escapeHtml(game.title)}">
+          <input type="text" class="form-input" id="inp-meta-title" value="${escapeHtml(game.title)}" ${getFieldAttrs('title')}>
         </div>
         
         <div class="form-row">
           <div class="form-field">
             <label class="form-label">Geliştirici</label>
-            <input type="text" class="form-input" id="inp-meta-dev" value="${escapeHtml(game.developer)}">
+            <input type="text" class="form-input" id="inp-meta-dev" value="${escapeHtml(game.developer)}" ${getFieldAttrs('developer')}>
           </div>
           <div class="form-field">
             <label class="form-label">Yayıncı</label>
-            <input type="text" class="form-input" id="inp-meta-pub" value="${escapeHtml(game.publisher)}">
+            <input type="text" class="form-input" id="inp-meta-pub" value="${escapeHtml(game.publisher)}" ${getFieldAttrs('publisher')}>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-field">
             <label class="form-label">Tür</label>
-            <input type="text" class="form-input" id="inp-meta-genre" value="${escapeHtml(game.genre)}">
+            <input type="text" class="form-input" id="inp-meta-genre" value="${escapeHtml(game.genre)}" ${getFieldAttrs('genre')}>
           </div>
           <div class="form-field">
             <label class="form-label">Tarih</label>
-            <input type="date" class="form-input" id="inp-meta-date" value="${game.releasedate}">
+            <input type="date" class="form-input" id="inp-meta-date" value="${game.releasedate}" ${getFieldAttrs('releasedate')}>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-field">
             <label class="form-label">Puan (0.00 - 1.00)</label>
-            <input type="number" step="0.05" min="0" max="1" class="form-input" id="inp-meta-rating" value="${game.rating}">
+            <input type="number" step="0.05" min="0" max="1" class="form-input" id="inp-meta-rating" value="${game.rating}" ${getFieldAttrs('rating')}>
           </div>
           <div class="form-field">
             <label class="form-label">Oyuncu</label>
-            <input type="text" class="form-input" id="inp-meta-players" value="${game.players}">
+            <input type="text" class="form-input" id="inp-meta-players" value="${game.players}" ${getFieldAttrs('players')}>
           </div>
         </div>
 
         <div class="form-field">
           <label class="form-label">Açıklama</label>
-          <textarea class="form-textarea" id="inp-meta-desc">${escapeHtml(game.description)}</textarea>
+          <textarea class="form-textarea" id="inp-meta-desc" ${getFieldAttrs('desc')}>${escapeHtml(game.description)}</textarea>
         </div>
       </div>
     </div>
