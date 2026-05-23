@@ -621,7 +621,7 @@ function initUIBindings() {
         document.getElementById('inp-col-date').value = "release_date";
         document.getElementById('inp-col-rating').value = "rating";
         document.getElementById('inp-col-players').value = "players";
-      } else if (preset === 'standard') {
+      } else if (preset === 'standard' || preset === 'r36s') {
         document.getElementById('sel-profile-storage').value = 'xml';
         document.getElementById('sqlite-config-group').style.display = 'none';
       }
@@ -873,6 +873,12 @@ async function saveDeviceProfileAndStart() {
       romsRoot: "Roms",
       imagesRoot: "Imgs",
       imagesLoc: "root-separate"
+    };
+  } else if (presetVal === 'r36s') {
+    currentProfile.paths = {
+      romsRoot: "",
+      imagesRoot: "images",
+      imagesLoc: "roms-sub"
     };
   } else {
     // Custom
@@ -1590,7 +1596,7 @@ function renderListView(container, games) {
 }
 
 // --- Select ROM for Inspection & Display in Right Panel ---
-function selectRomForInspection(game, element) {
+async function selectRomForInspection(game, element) {
   selectedRom = game;
 
   // Toggle active class in grid
@@ -1599,12 +1605,16 @@ function selectRomForInspection(game, element) {
   });
   element.classList.add('active');
 
+  const system = consoleData[activeConsole];
+  // Lazy-load all available images for this game
+  await scanGameImagesList(system, game);
+
   // Populate Right Inspector Panel
   const inspectorPanel = document.getElementById('sidebar-right');
   if (!inspectorPanel) return;
 
   // Config default cartridge image as fallback
-  const fallbackImg = consoleData[activeConsole].config.defaultCart;
+  const fallbackImg = system.config.defaultCart;
 
   const isSqlite = currentProfile.metadataStorage === 'sqlite';
   const cols = isSqlite && currentProfile.sqliteConfig ? currentProfile.sqliteConfig.columns : null;
@@ -1621,12 +1631,21 @@ function selectRomForInspection(game, element) {
       <button class="save-btn" id="save-meta-btn">💾 Kaydet</button>
     </div>
     <div class="inspector-content">
-      <!-- Media Panel -->
+      <!-- Media Panel with Carousel -->
       <div class="inspector-media-container">
-        <div class="inspector-boxart">
+        <div class="inspector-boxart" id="inspector-carousel-container" style="position:relative">
           <img src="${game.image || fallbackImg}" id="inspector-image-preview" alt="Kapak Resmi">
+          
+          <!-- Carousel Nav Buttons (Only if multiple images exist) -->
+          ${game.imagesList && game.imagesList.length > 1 ? `
+            <button class="carousel-nav-btn prev-btn" id="btn-carousel-prev" title="Önceki Görsel">◀</button>
+            <button class="carousel-nav-btn next-btn" id="btn-carousel-next" title="Sonraki Görsel">▶</button>
+            <span class="carousel-indicator" id="carousel-indicator">1 / ${game.imagesList.length}</span>
+            <span class="carousel-suffix-label" id="carousel-suffix-label">${getFriendlySuffixName(game.imagesList[0].suffix)}</span>
+          ` : ''}
+          
           <div class="boxart-action-overlay">
-            <button class="media-btn" id="btn-manual-cover">🖼️ Kapak Değiştir</button>
+            <button class="media-btn" id="btn-manual-cover">🖼️ Görsel Değiştir</button>
           </div>
         </div>
       </div>
@@ -1694,6 +1713,39 @@ function selectRomForInspection(game, element) {
   document.getElementById('save-meta-btn').addEventListener('click', saveSelectedRomMetadata);
   document.getElementById('btn-scrape-online').addEventListener('click', triggerOnlineScrape);
   document.getElementById('btn-manual-cover').addEventListener('click', selectManualCoverImage);
+
+  // Carousel controls logic
+  let currentImgIndex = 0;
+  const btnPrev = document.getElementById('btn-carousel-prev');
+  const btnNext = document.getElementById('btn-carousel-next');
+  const imgPreview = document.getElementById('inspector-image-preview');
+  const indicator = document.getElementById('carousel-indicator');
+  const suffixLabel = document.getElementById('carousel-suffix-label');
+
+  if (btnPrev && btnNext && imgPreview) {
+    const updateCarouselView = () => {
+      const currentImg = game.imagesList[currentImgIndex];
+      imgPreview.src = currentImg.url;
+      if (indicator) indicator.textContent = `${currentImgIndex + 1} / ${game.imagesList.length}`;
+      if (suffixLabel) suffixLabel.textContent = getFriendlySuffixName(currentImg.suffix);
+      
+      // Update selected cover path so Save will persist the currently chosen image
+      game.image = currentImg.url;
+      game.localImagePath = currentImg.path;
+    };
+
+    btnPrev.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentImgIndex = (currentImgIndex - 1 + game.imagesList.length) % game.imagesList.length;
+      updateCarouselView();
+    });
+
+    btnNext.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentImgIndex = (currentImgIndex + 1) % game.imagesList.length;
+      updateCarouselView();
+    });
+  }
 }
 
 function clearInspector() {
@@ -2738,5 +2790,128 @@ async function writeSqliteDBFile(system) {
     console.error("SQLite veritabanı yazma hatası:", writeErr);
     alert("Hata: SQLite veritabanı dosyasına yazılamadı! Lütfen disk izinlerinizi kontrol edin.");
     throw writeErr;
+  }
+}
+
+// ==========================================================================
+// ÇOKLU GÖRSEL TARAMA VE CAROUSEL FONKSİYONLARI
+// ==========================================================================
+
+// Sonekleri dostane isimlerle eşleştir
+function getFriendlySuffixName(suffix) {
+  switch (suffix) {
+    case "":
+    case "default":
+      return "Standart Kapak";
+    case "-image":
+      return "Kutu Tasarımı (Boxart)";
+    case "-marquee":
+      return "Oyun Logosu (Marquee)";
+    case "-thumb":
+      return "Küçük Resim (Thumbnail)";
+    case "-boxart":
+      return "Kapak Görseli (Boxart)";
+    case "-titlescreen":
+      return "Giriş Ekranı (Title)";
+    case "-screenshot":
+      return "Ekran Görüntüsü";
+    default:
+      return suffix.replace('-', '').toUpperCase();
+  }
+}
+
+// Oyuna ait tüm olası kapak/görsel dosyalarını tara ve listele
+async function scanGameImagesList(system, game) {
+  game.imagesList = [];
+  try {
+    const baseName = game.filename.substring(0, game.filename.lastIndexOf('.'));
+    let sysImgsHandle = null;
+
+    if (currentProfile.paths.imagesLoc === 'root-separate') {
+      const imgsRootHandle = await sdCardHandle.getDirectoryHandle(currentProfile.paths.imagesRoot, { create: false });
+      sysImgsHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+    } else {
+      // standard subfolder
+      const imgDirName = currentProfile.paths.imagesRoot || "media/images";
+      const pathParts = imgDirName.split('/');
+      let currentHandle = system.dirHandle;
+      for (const part of pathParts) {
+        if (part) {
+          try {
+            currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+          } catch(e) {
+            currentHandle = null;
+            break;
+          }
+        }
+      }
+      sysImgsHandle = currentHandle;
+      
+      // Fallback: if not found, try common folders directly inside system dir
+      if (!sysImgsHandle) {
+        const fallbacks = ['images', 'media/images', 'downloaded_images'];
+        for (const fb of fallbacks) {
+          try {
+            let tempHandle = system.dirHandle;
+            for (const part of fb.split('/')) {
+              tempHandle = await tempHandle.getDirectoryHandle(part, { create: false });
+            }
+            sysImgsHandle = tempHandle;
+            break;
+          } catch(e) {}
+        }
+      }
+    }
+
+    if (sysImgsHandle) {
+      const suffixes = ["", "-image", "-marquee", "-thumb", "-boxart", "-titlescreen", "-screenshot"];
+      const extensions = ["png", "jpg", "jpeg", "gif", "PNG", "JPG", "JPEG"];
+      
+      for (const suffix of suffixes) {
+        let fileHandle = null;
+        let resolvedExt = "";
+        for (const ext of extensions) {
+          try {
+            fileHandle = await sysImgsHandle.getFileHandle(`${baseName}${suffix}.${ext}`, { create: false });
+            resolvedExt = ext;
+            break;
+          } catch(e) {}
+        }
+        if (fileHandle) {
+          const file = await fileHandle.getFile();
+          const url = URL.createObjectURL(file);
+          
+          let relativePath = "";
+          if (currentProfile.paths.imagesLoc === 'root-separate') {
+            relativePath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}${suffix}.${resolvedExt}`;
+          } else {
+            relativePath = `./${currentProfile.paths.imagesRoot || "media/images"}/${baseName}${suffix}.${resolvedExt}`;
+          }
+          
+          game.imagesList.push({
+            suffix: suffix || "default",
+            url: url,
+            path: relativePath
+          });
+        }
+      }
+    }
+  } catch(err) {
+    console.warn("Resim listesi taranırken hata:", err);
+  }
+
+  // Fallback: If no images found but game.image is set, push it
+  if (game.imagesList.length === 0 && game.image) {
+    game.imagesList.push({
+      suffix: "default",
+      url: game.image,
+      path: game.localImagePath || ""
+    });
+  }
+
+  // Ensure game.image points to the first available image if not set
+  if (game.imagesList.length > 0 && !game.image) {
+    game.image = game.imagesList[0].url;
+    game.localImagePath = game.imagesList[0].path;
   }
 }
