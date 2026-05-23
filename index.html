@@ -8,6 +8,9 @@
   
   <!-- CSS Styling -->
   <link rel="stylesheet" href="index.css">
+  
+  <!-- SQLite WASM Engine -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
 </head>
 <body>
 
@@ -193,6 +196,94 @@
               <option value="crossmix">Trimui Smart Pro (CrossMix Düzeni)</option>
               <option value="custom">Özel Düzen (Klasörleri El ile Ayarla)</option>
             </select>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Metadata Depolama Türü</label>
+            <select class="form-input" id="sel-profile-storage" style="background:#161925; color:#fff">
+              <option value="xml">XML Dosyası (gamelist.xml)</option>
+              <option value="sqlite">SQLite Veritabanı (.db Önbelleği)</option>
+            </select>
+          </div>
+
+          <!-- Hidden File Selector for Auto Schema Mapper -->
+          <input type="file" id="sqlite-file-analyzer" style="display:none" accept=".db,.sqlite,.sqlite3">
+
+          <!-- SQLite Schema Mapper Config Group -->
+          <div id="sqlite-config-group" style="display:none; border-top:1px solid rgba(255,255,255,0.05); padding-top:15px; margin-top:10px; flex-direction:column; gap:12px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px">
+              <label class="form-label" style="margin-bottom:0; color:#fff">SQLite Şema Yapılandırması</label>
+              <button class="picker-btn" id="btn-autodetect-schema" style="width:auto; padding:5px 12px; font-size:0.65rem; box-shadow:none; border-radius:4px" type="button">🔍 Otomatik Şema Algıla</button>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.65rem">Dosya Adı Şablonu</label>
+                <input type="text" class="form-input" id="inp-sqlite-pattern" placeholder="Örn: {SYSTEM}_cache7.db" value="{SYSTEM}_cache7.db">
+              </div>
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.65rem">Tablo Adı</label>
+                <input type="text" class="form-input" id="inp-sqlite-table" placeholder="Örn: roms, games" value="roms">
+              </div>
+            </div>
+
+            <!-- Column Mappers -->
+            <label class="form-label" style="margin-top:5px; font-size:0.65rem; color:hsl(var(--retro-yellow)); letter-spacing:0.5px">Sütun Eşleştirmeleri (Column Mapping)</label>
+            
+            <div class="form-row">
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Dosya Yolu (Filename)</label>
+                <input type="text" class="form-input" id="inp-col-filename" placeholder="rom_path" value="rom_path">
+              </div>
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Oyun Adı (Title)</label>
+                <input type="text" class="form-input" id="inp-col-title" placeholder="title" value="title">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Açıklama (Description)</label>
+                <input type="text" class="form-input" id="inp-col-desc" placeholder="desc" value="desc">
+              </div>
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Kapak Resmi (Image)</label>
+                <input type="text" class="form-input" id="inp-col-image" placeholder="image_path" value="image_path">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Geliştirici (Developer)</label>
+                <input type="text" class="form-input" id="inp-col-dev" placeholder="developer" value="developer">
+              </div>
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Yayıncı (Publisher)</label>
+                <input type="text" class="form-input" id="inp-col-pub" placeholder="publisher" value="publisher">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Tür (Genre)</label>
+                <input type="text" class="form-input" id="inp-col-genre" placeholder="genre" value="genre">
+              </div>
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Yayın Tarihi (Date)</label>
+                <input type="text" class="form-input" id="inp-col-date" placeholder="release_date" value="release_date">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Puan (Rating)</label>
+                <input type="text" class="form-input" id="inp-col-rating" placeholder="rating" value="rating">
+              </div>
+              <div class="form-field">
+                <label class="form-label" style="font-size:0.6rem">Oyuncu Sayısı (Players)</label>
+                <input type="text" class="form-input" id="inp-col-players" placeholder="players" value="players">
+              </div>
+            </div>
           </div>
           
           <!-- Custom Paths Config Group -->

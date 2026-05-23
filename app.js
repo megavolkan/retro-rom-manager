@@ -17,11 +17,13 @@ let activeFilters = {
 let currentProfile = {
   cardName: "Standart Cihaz",
   preset: "standard",
+  metadataStorage: "xml", // 'xml' or 'sqlite'
   paths: {
     romsRoot: "",
     imagesRoot: "media/images",
     imagesLoc: "roms-sub" // 'roms-sub' or 'root-separate'
-  }
+  },
+  sqliteConfig: null
 };
 
 // --- Console Configuration Mapping ---
@@ -259,8 +261,49 @@ function initUIBindings() {
   const customPaths = document.getElementById('custom-paths-group');
   if (selPreset && customPaths) {
     selPreset.addEventListener('change', (e) => {
-      customPaths.style.display = e.target.value === 'custom' ? 'flex' : 'none';
+      const preset = e.target.value;
+      customPaths.style.display = preset === 'custom' ? 'flex' : 'none';
+      
+      // Auto-switch metadata storage and config for CrossMix
+      if (preset === 'crossmix') {
+        document.getElementById('sel-profile-storage').value = 'sqlite';
+        document.getElementById('sqlite-config-group').style.display = 'flex';
+        
+        // Reset SQLite fields to CrossMix defaults
+        document.getElementById('inp-sqlite-pattern').value = "{SYSTEM}_cache7.db";
+        document.getElementById('inp-sqlite-table').value = "roms";
+        document.getElementById('inp-col-filename').value = "rom_path";
+        document.getElementById('inp-col-title').value = "title";
+        document.getElementById('inp-col-desc').value = "desc";
+        document.getElementById('inp-col-image').value = "image_path";
+        document.getElementById('inp-col-dev').value = "developer";
+        document.getElementById('inp-col-pub').value = "publisher";
+        document.getElementById('inp-col-genre').value = "genre";
+        document.getElementById('inp-col-date').value = "release_date";
+        document.getElementById('inp-col-rating').value = "rating";
+        document.getElementById('inp-col-players').value = "players";
+      } else if (preset === 'standard') {
+        document.getElementById('sel-profile-storage').value = 'xml';
+        document.getElementById('sqlite-config-group').style.display = 'none';
+      }
     });
+  }
+
+  const selStorage = document.getElementById('sel-profile-storage');
+  const sqliteConfig = document.getElementById('sqlite-config-group');
+  if (selStorage && sqliteConfig) {
+    selStorage.addEventListener('change', (e) => {
+      sqliteConfig.style.display = e.target.value === 'sqlite' ? 'flex' : 'none';
+    });
+  }
+
+  const btnAutodetect = document.getElementById('btn-autodetect-schema');
+  const sqliteFileAnalyzer = document.getElementById('sqlite-file-analyzer');
+  if (btnAutodetect && sqliteFileAnalyzer) {
+    btnAutodetect.addEventListener('click', () => {
+      sqliteFileAnalyzer.click();
+    });
+    sqliteFileAnalyzer.addEventListener('change', handleAutoDetectSchema);
   }
 
   const selImagesLoc = document.getElementById('sel-custom-images-loc');
@@ -295,6 +338,34 @@ function initUIBindings() {
         document.getElementById('custom-paths-group').style.display = currentProfile.preset === 'custom' ? 'flex' : 'none';
         document.getElementById('custom-images-folder-field').style.display = currentProfile.paths.imagesLoc === 'root-separate' ? 'flex' : 'none';
         
+        const storageVal = currentProfile.metadataStorage || "xml";
+        document.getElementById('sel-profile-storage').value = storageVal;
+        
+        const sqliteConfigGroup = document.getElementById('sqlite-config-group');
+        if (sqliteConfigGroup) {
+          sqliteConfigGroup.style.display = storageVal === 'sqlite' ? 'flex' : 'none';
+        }
+        
+        if (currentProfile.sqliteConfig) {
+          const cfg = currentProfile.sqliteConfig;
+          document.getElementById('inp-sqlite-pattern').value = cfg.pattern || "{SYSTEM}_cache7.db";
+          document.getElementById('inp-sqlite-table').value = cfg.tableName || "roms";
+          
+          if (cfg.columns) {
+            const cols = cfg.columns;
+            document.getElementById('inp-col-filename').value = cols.filename || "rom_path";
+            document.getElementById('inp-col-title').value = cols.title || "title";
+            document.getElementById('inp-col-desc').value = cols.desc || "desc";
+            document.getElementById('inp-col-image').value = cols.image || "image_path";
+            document.getElementById('inp-col-dev').value = cols.developer || "developer";
+            document.getElementById('inp-col-pub').value = cols.publisher || "publisher";
+            document.getElementById('inp-col-genre').value = cols.genre || "genre";
+            document.getElementById('inp-col-date').value = cols.releasedate || "release_date";
+            document.getElementById('inp-col-rating').value = cols.rating || "rating";
+            document.getElementById('inp-col-players').value = cols.players || "players";
+          }
+        }
+
         // Show delete button since profile exists
         if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
 
@@ -479,6 +550,29 @@ async function saveDeviceProfileAndStart() {
     };
   }
 
+  currentProfile.metadataStorage = document.getElementById('sel-profile-storage').value || "xml";
+  
+  if (currentProfile.metadataStorage === 'sqlite') {
+    currentProfile.sqliteConfig = {
+      pattern: document.getElementById('inp-sqlite-pattern').value.trim() || "{SYSTEM}_cache7.db",
+      tableName: document.getElementById('inp-sqlite-table').value.trim() || "roms",
+      columns: {
+        filename: document.getElementById('inp-col-filename').value.trim() || "rom_path",
+        title: document.getElementById('inp-col-title').value.trim() || "title",
+        desc: document.getElementById('inp-col-desc').value.trim() || "desc",
+        image: document.getElementById('inp-col-image').value.trim() || "image_path",
+        developer: document.getElementById('inp-col-dev').value.trim() || "developer",
+        publisher: document.getElementById('inp-col-pub').value.trim() || "publisher",
+        genre: document.getElementById('inp-col-genre').value.trim() || "genre",
+        releasedate: document.getElementById('inp-col-date').value.trim() || "release_date",
+        rating: document.getElementById('inp-col-rating').value.trim() || "rating",
+        players: document.getElementById('inp-col-players').value.trim() || "players"
+      }
+    };
+  } else {
+    currentProfile.sqliteConfig = null;
+  }
+
   // Save .rrmas file in SD Card root folder
   try {
     const fileHandle = await sdCardHandle.getFileHandle('.rrmas', { create: true });
@@ -522,7 +616,9 @@ function updateProfileBadgeUI() {
   const lbl = document.getElementById('lbl-profile-name');
   if (badge && lbl) {
     badge.style.display = 'flex';
-    lbl.textContent = currentProfile.cardName;
+    const isSqlite = currentProfile.metadataStorage === 'sqlite';
+    const suffix = isSqlite ? ' <span style="background:hsl(var(--retro-cyan)); color:#000; padding:2px 5px; border-radius:3px; font-size:0.55rem; font-weight:900; margin-left:6px; letter-spacing:0.5px">SQLITE</span>' : '';
+    lbl.innerHTML = `${currentProfile.cardName}${suffix}`;
   }
 }
 
@@ -596,8 +692,12 @@ async function scanSDCardDirectories() {
       // Scan ROM files in this directory
       await scanROMFilesInDirectory(system);
 
-      // Check / Load / Create gamelist.xml
-      await loadOrCreateGamelistXML(system);
+      // Check / Load metadata depending on storage type
+      if (currentProfile.metadataStorage === 'sqlite') {
+        await tryLoadOrCreateSqliteDB(system);
+      } else {
+        await loadOrCreateGamelistXML(system);
+      }
     }
   }
 
@@ -1286,14 +1386,17 @@ async function saveSelectedRomMetadata() {
   selectedRom.players = playersVal;
   selectedRom.description = descVal;
 
-  // Write changes to gamelist.xml on the SD Card
-  await writeGamelistXMLFile(consoleData[activeConsole]);
+  // Write changes depending on storage type
+  if (currentProfile.metadataStorage === 'sqlite') {
+    await writeSqliteDBFile(consoleData[activeConsole]);
+    alert("Oyun bilgileri başarıyla SD karttaki SQLite cache veritabanına kaydedildi!");
+  } else {
+    await writeGamelistXMLFile(consoleData[activeConsole]);
+    alert("Oyun bilgileri başarıyla SD karttaki gamelist.xml dosyasına kaydedildi!");
+  }
 
   // Re-render
   renderActiveGames();
-  
-  // Show save success message
-  alert("Oyun bilgileri başarıyla SD karttaki gamelist.xml dosyasına kaydedildi!");
 }
 
 // --- Write XML DOM Document back to file on SD card ---
@@ -1660,15 +1763,20 @@ async function applyScrapedGameMetadata(scraped) {
     preview.src = selectedRom.image || consoleData[activeConsole].config.defaultCart;
   }
 
-  // Update UI and write gamelist.xml
-  await writeGamelistXMLFile(system);
+  // Update UI and write metadata
+  if (currentProfile.metadataStorage === 'sqlite') {
+    await writeSqliteDBFile(system);
+    alert("Oyun bilgileri internetten çekildi, kapak görseli SD karttaki hedefine kaydedildi ve SQLite veritabanı güncellendi!");
+  } else {
+    await writeGamelistXMLFile(system);
+    alert("Oyun bilgileri internetten çekildi, kapak görseli SD karttaki hedefine kaydedildi ve gamelist.xml güncellendi!");
+  }
+  
   renderActiveGames();
 
   // Reset button state
   saveBtn.disabled = false;
   saveBtn.innerHTML = originalText;
-  
-  alert("Oyun bilgileri internetten çekildi, kapak görseli SD karttaki hedefine kaydedildi ve gamelist.xml güncellendi!");
 }
 
 // --- Select Manual Cover Image File from computer ---
@@ -1724,8 +1832,12 @@ async function selectManualCoverImage() {
       preview.src = selectedRom.image;
     }
 
-    // Write XML
-    await writeGamelistXMLFile(system);
+    // Write metadata
+    if (currentProfile.metadataStorage === 'sqlite') {
+      await writeSqliteDBFile(system);
+    } else {
+      await writeGamelistXMLFile(system);
+    }
     renderActiveGames();
     alert("Kapak resmi başarıyla değiştirildi ve SD kartınıza kaydedildi!");
 
@@ -1827,8 +1939,12 @@ function setupDragAndDrop() {
     }
 
     if (addedCount > 0) {
-      // Re-scan/rewrite XML and update UI
-      await writeGamelistXMLFile(system);
+      // Re-scan/rewrite metadata and update UI
+      if (currentProfile.metadataStorage === 'sqlite') {
+        await writeSqliteDBFile(system);
+      } else {
+        await writeGamelistXMLFile(system);
+      }
       renderSidebarConsoles();
       renderActiveGames();
       alert(`${addedCount} adet yeni ROM dosyası başarıyla SD kartınızdaki ${system.config.displayName} klasörüne kopyalandı!`);
@@ -1845,4 +1961,429 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+// ==========================================================================
+// SQLite WASM ENTEGRASYONU FONKSIYONLARI
+// ==========================================================================
+
+let SQL = null;
+
+// SQLite WASM Motorunu Başlat
+async function initSqlEngine() {
+  if (SQL) return SQL;
+  try {
+    const config = {
+      locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${filename}`
+    };
+    SQL = await initSqlJs(config);
+    window.SQL = SQL;
+    console.log("SQLite WASM Engine initialized successfully!");
+    return SQL;
+  } catch (err) {
+    console.error("SQLite WASM initialization failed:", err);
+    alert("SQLite veritabanı motoru başlatılamadı! Lütfen internet bağlantınızı kontrol edin.");
+    throw err;
+  }
+}
+
+// Otomatik Veritabanı Şeması Analizcisi
+async function handleAutoDetectSchema(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  try {
+    // Arayüzde yükleniyor durumu
+    const btn = document.getElementById('btn-autodetect-schema');
+    const originalText = btn.textContent;
+    btn.textContent = "⌛ Okunuyor...";
+    btn.disabled = true;
+
+    await initSqlEngine();
+    
+    const reader = new FileReader();
+    reader.onload = function() {
+      try {
+        const Uints = new Uint8Array(reader.result);
+        const db = new SQL.Database(Uints);
+        
+        // Tabloları listele
+        const tablesResult = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+        if (tablesResult.length === 0 || !tablesResult[0].values || tablesResult[0].values.length === 0) {
+          alert("Hata: Seçilen veritabanında tablo bulunamadı!");
+          db.close();
+          btn.textContent = originalText;
+          btn.disabled = false;
+          return;
+        }
+        
+        const tables = tablesResult[0].values.map(v => v[0]);
+        let selectedTable = tables[0];
+        for (const t of tables) {
+          const lower = t.toLowerCase();
+          if (lower.includes('rom') || lower.includes('game') || lower.includes('cache')) {
+            selectedTable = t;
+            break;
+          }
+        }
+        
+        // Kolonları listele
+        const columnsResult = db.exec(`PRAGMA table_info("${selectedTable}")`);
+        if (columnsResult.length === 0 || !columnsResult[0].values) {
+          alert(`Hata: '${selectedTable}' tablosunun sütun bilgileri alınamadı!`);
+          db.close();
+          btn.textContent = originalText;
+          btn.disabled = false;
+          return;
+        }
+        
+        const columns = columnsResult[0].values.map(col => col[1]);
+        
+        const mapping = {
+          filename: ['rom_path', 'rom_name', 'path', 'filename', 'file_path', 'file'],
+          title: ['title', 'name', 'game_name', 'display_name', 'label'],
+          desc: ['desc', 'description', 'summary', 'about', 'comment'],
+          image: ['image_path', 'image', 'cover_path', 'cover', 'img_path', 'boxart', 'thumbnail'],
+          developer: ['developer', 'dev', 'maker', 'creator'],
+          publisher: ['publisher', 'pub'],
+          genre: ['genre', 'type', 'category'],
+          releasedate: ['release_date', 'releasedate', 'date', 'year'],
+          rating: ['rating', 'score', 'stars'],
+          players: ['players', 'player_count', 'max_players']
+        };
+        
+        // Eşleştirmeleri form elemanlarına aktar
+        document.getElementById('inp-sqlite-table').value = selectedTable;
+        
+        const colInputs = {
+          filename: 'inp-col-filename',
+          title: 'inp-col-title',
+          desc: 'inp-col-desc',
+          image: 'inp-col-image',
+          developer: 'inp-col-dev',
+          publisher: 'inp-col-pub',
+          genre: 'inp-col-genre',
+          releasedate: 'inp-col-date',
+          rating: 'inp-col-rating',
+          players: 'inp-col-players'
+        };
+        
+        for (const key in mapping) {
+          let matchedCol = "";
+          for (const candidate of mapping[key]) {
+            const found = columns.find(c => c.toLowerCase() === candidate.toLowerCase());
+            if (found) {
+              matchedCol = found;
+              break;
+            }
+          }
+          if (!matchedCol) {
+            for (const candidate of mapping[key]) {
+              const found = columns.find(c => c.toLowerCase().includes(candidate.toLowerCase()));
+              if (found) {
+                matchedCol = found;
+                break;
+              }
+            }
+          }
+          if (!matchedCol && key === 'filename') {
+            matchedCol = columns[0];
+          } else if (!matchedCol && key === 'title') {
+            matchedCol = columns.length > 1 ? columns[1] : columns[0];
+          }
+          
+          document.getElementById(colInputs[key]).value = matchedCol;
+        }
+        
+        db.close();
+        btn.textContent = originalText;
+        btn.disabled = false;
+        alert(`🎉 Şema başarıyla algılandı!\nTablo: "${selectedTable}"\nBulunan Sütunlar: ${columns.join(', ')}`);
+      } catch (err) {
+        console.error(err);
+        btn.textContent = originalText;
+        btn.disabled = false;
+        alert("Veritabanı okunurken bir hata oluştu. Lütfen geçerli bir SQLite .db dosyası seçtiğinizden emin olun.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    e.target.value = "";
+  }
+}
+
+// Dosya Yollarını Eşleme İçin Temizle
+function cleanPathForMatching(path) {
+  if (!path) return "";
+  let cleaned = path.replace(/^\.\//, '').replace(/^\//, '');
+  if (cleaned.includes('/')) {
+    cleaned = cleaned.split('/').pop();
+  }
+  if (cleaned.includes('\\')) {
+    cleaned = cleaned.split('\\').pop();
+  }
+  return cleaned.toLowerCase().trim();
+}
+
+// SQLite Önbellek Veritabanı Yükle
+async function tryLoadOrCreateSqliteDB(system) {
+  await initSqlEngine();
+  
+  const pattern = currentProfile.sqliteConfig.pattern || "{SYSTEM}_cache7.db";
+  const sysId = system.config.id;
+  const sysFolder = system.dirHandle.name;
+  const dbFilename = pattern.replace(/{SYSTEM}/g, sysFolder).replace(/{system}/g, sysId);
+  const dirHandle = system.dirHandle;
+  
+  let dbFileHandle = null;
+  let arrayBuffer = null;
+  
+  try {
+    dbFileHandle = await dirHandle.getFileHandle(dbFilename, { create: false });
+    const file = await dbFileHandle.getFile();
+    arrayBuffer = await file.arrayBuffer();
+    console.log(`Mevcut SQLite veritabanı bulundu ve yüklendi: ${dbFilename}`);
+  } catch (err) {
+    console.log(`Veritabanı dosyası (${dbFilename}) bulunamadı. Yeni bir tane oluşturuluyor.`);
+  }
+  
+  let db = null;
+  const dbConfig = currentProfile.sqliteConfig;
+  const cols = dbConfig.columns;
+  const tableName = dbConfig.tableName;
+  
+  if (arrayBuffer) {
+    try {
+      db = new window.SQL.Database(new Uint8Array(arrayBuffer));
+    } catch (parseErr) {
+      console.error("Veritabanı ayrıştırılamadı, yeni bir tane oluşturuluyor:", parseErr);
+    }
+  }
+  
+  if (!db) {
+    db = new window.SQL.Database();
+    const columnsDef = [];
+    if (cols.filename) columnsDef.push(`"${cols.filename}" TEXT PRIMARY KEY`);
+    if (cols.title) columnsDef.push(`"${cols.title}" TEXT`);
+    if (cols.desc) columnsDef.push(`"${cols.desc}" TEXT`);
+    if (cols.image) columnsDef.push(`"${cols.image}" TEXT`);
+    if (cols.developer) columnsDef.push(`"${cols.developer}" TEXT`);
+    if (cols.publisher) columnsDef.push(`"${cols.publisher}" TEXT`);
+    if (cols.genre) columnsDef.push(`"${cols.genre}" TEXT`);
+    if (cols.releasedate) columnsDef.push(`"${cols.releasedate}" TEXT`);
+    if (cols.rating) columnsDef.push(`"${cols.rating}" REAL`);
+    if (cols.players) columnsDef.push(`"${cols.players}" TEXT`);
+    
+    const createTableSql = `CREATE TABLE "${tableName}" (${columnsDef.join(', ')})`;
+    db.run(createTableSql);
+    console.log(`Yeni SQLite veritabanı ve "${tableName}" tablosu başarıyla oluşturuldu.`);
+  }
+  
+  system.sqliteDB = db;
+  
+  try {
+    const selectCols = [];
+    for (const key in cols) {
+      const dbCol = cols[key];
+      if (dbCol) {
+        selectCols.push(`"${dbCol}" AS "${key}"`);
+      }
+    }
+    
+    const selectQuery = `SELECT ${selectCols.join(', ')} FROM "${tableName}"`;
+    const result = db.exec(selectQuery);
+    
+    const rows = [];
+    if (result && result.length > 0) {
+      const colsList = result[0].columns;
+      for (const val of result[0].values) {
+        const row = {};
+        for (let i = 0; i < colsList.length; i++) {
+          row[colsList[i]] = val[i];
+        }
+        rows.push(row);
+      }
+    }
+    
+    for (const row of rows) {
+      const matchedFilename = cleanPathForMatching(row.filename);
+      const game = system.games.find(g => cleanPathForMatching(g.filename) === matchedFilename);
+      
+      if (game) {
+        game.title = row.title || game.title;
+        game.description = row.desc || "";
+        game.rating = row.rating !== null && row.rating !== undefined ? String(row.rating) : "";
+        game.releasedate = formatDateFromXML(row.releasedate || "");
+        game.developer = row.developer || "";
+        game.publisher = row.publisher || "";
+        game.genre = row.genre || "";
+        game.players = row.players !== null && row.players !== undefined ? String(row.players) : "";
+        game.localImagePath = row.image || "";
+        game.isScraped = true;
+        game.dbRomPath = row.filename;
+        
+        if (game.localImagePath) {
+          await loadLocalImageBlob(system, game, game.localImagePath);
+        }
+      }
+    }
+    
+    for (const game of system.games) {
+      if (!game.image) {
+        await tryAutoDetectLocalImage(system, game);
+      }
+    }
+    
+  } catch (readErr) {
+    console.error("Veritabanı kayıtları okunurken hata oluştu:", readErr);
+    for (const game of system.games) {
+      await tryAutoDetectLocalImage(system, game);
+    }
+  }
+}
+
+// SQLite Önbellek Veritabanı Yaz
+async function writeSqliteDBFile(system) {
+  const db = system.sqliteDB;
+  if (!db) {
+    console.error("Hata: SQLite veritabanı bellekte yüklenmemiş!");
+    return;
+  }
+  
+  const dbConfig = currentProfile.sqliteConfig;
+  const cols = dbConfig.columns;
+  const tableName = dbConfig.tableName;
+  
+  for (const game of system.games) {
+    let exists = false;
+    let targetPath = game.dbRomPath || `./${game.filename}`;
+    
+    const checkQuery = `SELECT count(*) FROM "${tableName}" WHERE "${cols.filename}" = :romPath`;
+    const checkResult = db.exec(checkQuery, { ':romPath': targetPath });
+    if (checkResult && checkResult.length > 0 && checkResult[0].values[0][0] > 0) {
+      exists = true;
+    } else {
+      const checkQuery2 = `SELECT "${cols.filename}" FROM "${tableName}"`;
+      const checkResult2 = db.exec(checkQuery2);
+      if (checkResult2 && checkResult2.length > 0) {
+        for (const val of checkResult2[0].values) {
+          const pathInDb = val[0];
+          if (cleanPathForMatching(pathInDb) === cleanPathForMatching(game.filename)) {
+            targetPath = pathInDb;
+            exists = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    let localPath = game.localImagePath;
+    if (!localPath && game.image && game.image.startsWith('blob:')) {
+      const safeTitle = game.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      if (currentProfile.paths.imagesLoc === 'root-separate') {
+        localPath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${safeTitle}.png`;
+      } else {
+        localPath = `./media/images/${safeTitle}.png`;
+      }
+      game.localImagePath = localPath;
+    }
+    
+    if (exists) {
+      const updateFields = [];
+      const params = { ':romPath': targetPath };
+      
+      const fieldMappings = [
+        { key: 'title', col: cols.title },
+        { key: 'description', col: cols.desc },
+        { key: 'developer', col: cols.developer },
+        { key: 'publisher', col: cols.publisher },
+        { key: 'genre', col: cols.genre },
+        { key: 'releasedate', col: cols.releasedate },
+        { key: 'rating', col: cols.rating },
+        { key: 'players', col: cols.players },
+        { key: 'localImagePath', col: cols.image }
+      ];
+      
+      for (const fm of fieldMappings) {
+        if (fm.col) {
+          let val = game[fm.key];
+          if (fm.key === 'rating' && val !== "") {
+            val = parseFloat(val);
+          }
+          updateFields.push(`"${fm.col}" = :${fm.key}`);
+          params[`:${fm.key}`] = val !== undefined && val !== null ? val : "";
+        }
+      }
+      
+      const sqlUpdate = `UPDATE "${tableName}" SET ${updateFields.join(', ')} WHERE "${cols.filename}" = :romPath`;
+      db.run(sqlUpdate, params);
+    } else {
+      const fields = [`"${cols.filename}"`];
+      const valPlaceholders = [':romPath'];
+      const params = { ':romPath': targetPath };
+      
+      const fieldMappings = [
+        { key: 'title', col: cols.title },
+        { key: 'description', col: cols.desc },
+        { key: 'developer', col: cols.developer },
+        { key: 'publisher', col: cols.publisher },
+        { key: 'genre', col: cols.genre },
+        { key: 'releasedate', col: cols.releasedate },
+        { key: 'rating', col: cols.rating },
+        { key: 'players', col: cols.players },
+        { key: 'localImagePath', col: cols.image }
+      ];
+      
+      for (const fm of fieldMappings) {
+        if (fm.col) {
+          let val = game[fm.key];
+          if (fm.key === 'rating' && val !== "") {
+            val = parseFloat(val);
+          }
+          fields.push(`"${fm.col}"`);
+          valPlaceholders.push(`:${fm.key}`);
+          params[`:${fm.key}`] = val !== undefined && val !== null ? val : "";
+        }
+      }
+      
+      const sqlInsert = `INSERT INTO "${tableName}" (${fields.join(', ')}) VALUES (${valPlaceholders.join(', ')})`;
+      db.run(sqlInsert, params);
+    }
+  }
+  
+  const binaryData = db.export();
+  
+  try {
+    const pattern = currentProfile.sqliteConfig.pattern || "{SYSTEM}_cache7.db";
+    const sysId = system.config.id;
+    const sysFolder = system.dirHandle.name;
+    const dbFilename = pattern.replace(/{SYSTEM}/g, sysFolder).replace(/{system}/g, sysId);
+    const dirHandle = system.dirHandle;
+    
+    try {
+      const origFileHandle = await dirHandle.getFileHandle(dbFilename, { create: false });
+      const origFile = await origFileHandle.getFile();
+      
+      const backupFileHandle = await dirHandle.getFileHandle(`${dbFilename}.bak`, { create: true });
+      const backupWritable = await backupFileHandle.createWritable();
+      await backupWritable.write(origFile);
+      await backupWritable.close();
+      console.log(`Yedek veritabanı başarıyla oluşturuldu: ${dbFilename}.bak`);
+    } catch (backupErr) {
+      console.warn("Veritabanı yedeği oluşturulamadı veya dosya ilk kez yaratılıyor:", backupErr);
+    }
+    
+    const fileHandle = await dirHandle.getFileHandle(dbFilename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(binaryData);
+    await writable.close();
+    console.log(`SQLite veritabanı başarıyla dosyaya yazıldı: ${dbFilename}`);
+    
+  } catch (writeErr) {
+    console.error("SQLite veritabanı yazma hatası:", writeErr);
+    alert("Hata: SQLite veritabanı dosyasına yazılamadı! Lütfen disk izinlerinizi kontrol edin.");
+    throw writeErr;
+  }
 }
