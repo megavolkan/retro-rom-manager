@@ -12,6 +12,7 @@ let activeFilters = {
   search: '',
   missingCover: false
 };
+let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
 
 // --- Custom Device Profile Settings ---
 let currentProfile = {
@@ -539,6 +540,16 @@ function initUIBindings() {
       activeFilters.missingCover = !activeFilters.missingCover;
       filterMissingBtn.classList.toggle('active', activeFilters.missingCover);
       renderActiveGames();
+    });
+  }
+
+  // Filter: Show Empty Systems Toggle
+  const chkShowEmpty = document.getElementById('chk-show-empty');
+  if (chkShowEmpty) {
+    chkShowEmpty.checked = showEmptySystems;
+    chkShowEmpty.addEventListener('change', (e) => {
+      showEmptySystems = e.target.checked;
+      renderSidebarConsoles();
     });
   }
 
@@ -1355,6 +1366,11 @@ function renderSidebarConsoles() {
 
     const coveredCount = sys.games.filter(g => g.image !== "").length;
     totalCovered += coveredCount;
+
+    // Hide systems with 0 roms by default, show when showEmptySystems is true
+    if (gameCount === 0 && !showEmptySystems) {
+      continue;
+    }
 
     const item = document.createElement('li');
     item.className = `console-item ${activeConsole === key ? 'active' : ''}`;
