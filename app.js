@@ -720,6 +720,25 @@ function initUIBindings() {
     });
   }
 
+  // Image Fit Toggles
+  const btnFitContain = document.getElementById('btn-fit-contain');
+  const btnFitCover = document.getElementById('btn-fit-cover');
+  if (btnFitContain && btnFitCover) {
+    btnFitContain.addEventListener('click', () => {
+      document.body.classList.add('image-fit-contain');
+      document.body.classList.remove('image-fit-cover');
+      btnFitContain.classList.add('active');
+      btnFitCover.classList.remove('active');
+    });
+
+    btnFitCover.addEventListener('click', () => {
+      document.body.classList.add('image-fit-cover');
+      document.body.classList.remove('image-fit-contain');
+      btnFitCover.classList.add('active');
+      btnFitContain.classList.remove('active');
+    });
+  }
+
   // Drag and Drop ROM Loader Integration
   setupDragAndDrop();
 }

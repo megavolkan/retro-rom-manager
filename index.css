@@ -890,13 +890,19 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(13, 14, 21, 0.8);
+  background: linear-gradient(to top, rgba(13, 14, 21, 0.95) 0%, rgba(13, 14, 21, 0.4) 60%, transparent 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  padding-bottom: 32px;
   opacity: 0;
   transition: var(--transition-smooth);
+  z-index: 5;
+  pointer-events: none;
+}
+.boxart-action-overlay * {
+  pointer-events: auto;
 }
 .inspector-boxart:hover .boxart-action-overlay {
   opacity: 1;
@@ -1320,4 +1326,21 @@ body {
   color: hsl(var(--retro-yellow));
   font-weight: 700;
   z-index: 10;
+}
+
+/* ==========================================================================
+   GLOBAL IMAGE FIT OPTIONS
+   ========================================================================== */
+body.image-fit-contain .boxart-img,
+body.image-fit-contain .row-thumb,
+body.image-fit-contain .inspector-boxart img,
+body.image-fit-contain .match-thumb {
+  object-fit: contain !important;
+}
+
+body.image-fit-cover .boxart-img,
+body.image-fit-cover .row-thumb,
+body.image-fit-cover .inspector-boxart img,
+body.image-fit-cover .match-thumb {
+  object-fit: cover !important;
 }
