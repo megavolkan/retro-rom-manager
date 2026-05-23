@@ -1344,3 +1344,31 @@ body.image-fit-cover .inspector-boxart img,
 body.image-fit-cover .match-thumb {
   object-fit: cover !important;
 }
+
+@keyframes slide-up-fade {
+  from {
+    transform: translate(-50%, 40px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+/* Bulk Checkbox styles */
+.bulk-chk-wrapper input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(13, 14, 21, 0.8);
+  accent-color: hsl(var(--retro-cyan));
+  cursor: pointer;
+  transition: all var(--transition-smooth);
+}
+.bulk-chk-wrapper input[type="checkbox"]:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 8px hsl(var(--retro-cyan) / 0.5);
+  border-color: hsl(var(--retro-cyan));
+}

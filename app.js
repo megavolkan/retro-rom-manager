@@ -8,6 +8,7 @@ let activeConsole = null;           // Active console category (e.g., 'snes')
 let currentViewMode = 'grid';       // 'grid' or 'list'
 let consoleData = {};               // Maps system name to system details (games, handles, xml)
 let selectedRom = null;             // Currently selected ROM in the inspector
+let selectedRomsBulk = [];          // Currently checked ROMs for bulk actions
 let activeFilters = {
   search: '',
   missingCover: false
@@ -713,6 +714,19 @@ function initUIBindings() {
         document.getElementById('inp-adv-images-root').value = currentProfile.paths.imagesRoot || "./images";
         document.getElementById('inp-adv-videos-root').value = currentProfile.paths.videosRoot || "./videos";
 
+        // Populate Scraper Settings
+        if (currentProfile.scraper) {
+          document.getElementById('inp-scraper-ssid').value = currentProfile.scraper.ssid || "";
+          document.getElementById('inp-scraper-sspassword').value = currentProfile.scraper.sspassword || "";
+          document.getElementById('inp-scraper-devid').value = currentProfile.scraper.devid || "retrotool";
+          document.getElementById('inp-scraper-devpassword').value = currentProfile.scraper.devpassword || "devpwd";
+        } else {
+          document.getElementById('inp-scraper-ssid').value = "";
+          document.getElementById('inp-scraper-sspassword').value = "";
+          document.getElementById('inp-scraper-devid').value = "retrotool";
+          document.getElementById('inp-scraper-devpassword').value = "devpwd";
+        }
+
         // Show delete button since profile exists
         if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
 
@@ -737,6 +751,18 @@ function initUIBindings() {
       const isHidden = advGroup.style.display === 'none';
       advGroup.style.display = isHidden ? 'flex' : 'none';
       if (advIcon) advIcon.textContent = isHidden ? '▲' : '▼';
+    });
+  }
+
+  // Scraper Settings Collapsible Toggle
+  const btnToggleScraper = document.getElementById('btn-toggle-scraper-settings');
+  const scraperGroup = document.getElementById('scraper-settings-group');
+  const scraperIcon = document.getElementById('scraper-toggle-icon');
+  if (btnToggleScraper && scraperGroup) {
+    btnToggleScraper.addEventListener('click', () => {
+      const isHidden = scraperGroup.style.display === 'none';
+      scraperGroup.style.display = isHidden ? 'flex' : 'none';
+      if (scraperIcon) scraperIcon.textContent = isHidden ? '▲' : '▼';
     });
   }
 
@@ -770,6 +796,23 @@ function initUIBindings() {
 
   // Drag and Drop ROM Loader Integration
   setupDragAndDrop();
+
+  // Bulk Actions Bar Listeners
+  const btnBulkDeselect = document.getElementById('btn-bulk-deselect');
+  if (btnBulkDeselect) {
+    btnBulkDeselect.addEventListener('click', () => {
+      selectedRomsBulk = [];
+      renderActiveGames();
+      updateBulkActionBarUI();
+    });
+  }
+
+  const btnBulkDelete = document.getElementById('btn-bulk-delete');
+  if (btnBulkDelete) {
+    btnBulkDelete.addEventListener('click', () => {
+      deleteBulkRoms();
+    });
+  }
 }
 
 // --- Update Advanced Folder Paths Default Inputs ---
@@ -988,6 +1031,14 @@ async function saveDeviceProfileAndStart() {
   } else {
     currentProfile.sqliteConfig = null;
   }
+
+  // Save Scraper credentials
+  currentProfile.scraper = {
+    ssid: document.getElementById('inp-scraper-ssid').value.trim(),
+    sspassword: document.getElementById('inp-scraper-sspassword').value.trim(),
+    devid: document.getElementById('inp-scraper-devid').value.trim(),
+    devpassword: document.getElementById('inp-scraper-devpassword').value.trim()
+  };
 
   // Save .rrmas file in SD Card root folder
   try {
@@ -1216,6 +1267,10 @@ async function loadOrCreateGamelistXML(system) {
         
         const localImgPath = getXmlNodeValue(node, 'image') || "";
         matchedGame.localImagePath = localImgPath;
+        
+        const localVideoPath = getXmlNodeValue(node, 'video') || "";
+        matchedGame.video = localVideoPath;
+
         matchedGame.isScraped = true;
 
         // Try to load the local image blob if image path is valid
@@ -1530,6 +1585,10 @@ function renderSidebarConsoles() {
 function activateConsoleCategory(key) {
   activeConsole = key;
 
+  // Clear bulk selections
+  selectedRomsBulk = [];
+  updateBulkActionBarUI();
+
   // Update Sidebar active state
   document.querySelectorAll('.console-item').forEach(item => {
     const con = item.getAttribute('data-console');
@@ -1640,12 +1699,19 @@ function renderGridView(container, games) {
     const card = document.createElement('div');
     card.className = `rom-card ${selectedRom === game ? 'active' : ''}`;
     
+    // Check if this game is currently selected in bulk
+    const isChecked = selectedRomsBulk.includes(game);
+    
     // Scraped Badge
     const scrapedDotClass = game.image !== "" ? 'completed' : '';
     const badgeText = game.filename.split('.').pop();
 
     card.innerHTML = `
-      <span class="card-badge">${badgeText}</span>
+      <!-- Bulk Checkbox -->
+      <div class="bulk-chk-wrapper" style="position:absolute; top:8px; left:8px; z-index:10; pointer-events:auto">
+        <input type="checkbox" class="bulk-chk" ${isChecked ? 'checked' : ''} style="accent-color:hsl(var(--retro-cyan)); width:16px; height:16px; cursor:pointer">
+      </div>
+      <span class="card-badge" style="right:8px; top:8px">${badgeText}</span>
       <span class="scraped-dot ${scrapedDotClass}"></span>
       <div class="boxart-wrapper">
         ${game.image ? 
@@ -1663,6 +1729,22 @@ function renderGridView(container, games) {
         </div>
       </div>
     `;
+
+    // Bind checkbox change event listener
+    const chk = card.querySelector('.bulk-chk');
+    if (chk) {
+      chk.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent opening game details
+      });
+      chk.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+        } else {
+          selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+        }
+        updateBulkActionBarUI();
+      });
+    }
 
     card.addEventListener('click', () => {
       selectRomForInspection(game, card);
@@ -1684,9 +1766,15 @@ function renderListView(container, games) {
     const row = document.createElement('div');
     row.className = `rom-row-item ${selectedRom === game ? 'active' : ''}`;
 
+    // Check if this game is currently selected in bulk
+    const isChecked = selectedRomsBulk.includes(game);
     const isScraped = game.image !== "";
 
     row.innerHTML = `
+      <!-- Bulk Checkbox -->
+      <div class="bulk-chk-wrapper" style="display:flex; align-items:center; margin-right:12px; pointer-events:auto">
+        <input type="checkbox" class="bulk-chk" ${isChecked ? 'checked' : ''}>
+      </div>
       <div class="row-left">
         <div class="row-icon-wrapper">
           ${game.image ? 
@@ -1703,6 +1791,22 @@ function renderListView(container, games) {
         </span>
       </div>
     `;
+
+    // Bind checkbox change event listener
+    const chk = row.querySelector('.bulk-chk');
+    if (chk) {
+      chk.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent opening game details
+      });
+      chk.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+        } else {
+          selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+        }
+        updateBulkActionBarUI();
+      });
+    }
 
     row.addEventListener('click', () => {
       selectRomForInspection(game, row);
@@ -1748,7 +1852,10 @@ async function selectRomForInspection(game, element) {
   inspectorPanel.innerHTML = `
     <div class="inspector-header">
       <h3 class="inspector-title">ROM Detayları</h3>
-      <button class="save-btn" id="save-meta-btn">💾 Kaydet</button>
+      <div style="display:flex; gap:6px">
+        <button class="filter-btn" id="delete-rom-btn" style="background:rgba(255, 56, 96, 0.15); border:1px solid hsl(var(--retro-red)); color:#fff; font-size:0.75rem; padding:6px 10px; height:auto; display:flex; align-items:center; gap:4px" title="Oyunu Sil">🗑️ Sil</button>
+        <button class="save-btn" id="save-meta-btn">💾 Kaydet</button>
+      </div>
     </div>
     <div class="inspector-content">
       <!-- Media Panel with Carousel -->
@@ -1833,6 +1940,10 @@ async function selectRomForInspection(game, element) {
   document.getElementById('save-meta-btn').addEventListener('click', saveSelectedRomMetadata);
   document.getElementById('btn-scrape-online').addEventListener('click', triggerOnlineScrape);
   document.getElementById('btn-manual-cover').addEventListener('click', selectManualCoverImage);
+  const deleteRomBtn = document.getElementById('delete-rom-btn');
+  if (deleteRomBtn) {
+    deleteRomBtn.addEventListener('click', () => deleteSingleRom(game));
+  }
 
   // Carousel controls logic
   let currentImgIndex = 0;
@@ -1989,6 +2100,22 @@ async function writeGamelistXMLFile(system) {
       appendXmlTag(xmlDoc, gameNode, 'image', g.image);
     }
 
+    // Save video path
+    if (g.video) {
+      let localPath = g.video;
+      if (currentProfile.paths.imagesLoc === 'root-separate') {
+        const cleanRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
+        const filename = localPath.split('/').pop();
+        localPath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${filename}`;
+      } else {
+        const cleanRoot = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
+        const filename = localPath.split('/').pop();
+        localPath = `./${cleanRoot}/${filename}`;
+      }
+      g.video = localPath;
+      appendXmlTag(xmlDoc, gameNode, 'video', localPath);
+    }
+
     root.appendChild(gameNode);
   });
 
@@ -2063,6 +2190,86 @@ const jQuery = {
   }
 };
 
+// ScreenScraper Sistem Kimlik Eşleştirme Listesi
+const SCREENSCRAPER_SYSTEM_IDS = {
+  'snes': 4,
+  'sfc': 4,
+  'nes': 3,
+  'fc': 3,
+  'gba': 12,
+  'gb': 9,
+  'gbc': 10,
+  'genesis': 1,
+  'megadrive': 1,
+  'md': 1,
+  'psx': 57,
+  'ps1': 57,
+  'n64': 14,
+  'nds': 18,
+  'sms': 2,
+  'gg': 21,
+  'pce': 31,
+  'pcengine': 31,
+  'arcade': 75,
+  'mame': 75,
+  'neogeo': 142,
+  'cps1': 75,
+  'cps2': 75,
+  'cps3': 75,
+  'psp': 61,
+  'saturn': 22,
+  'dreamcast': 23,
+  'segae': 22,
+  'atari2600': 26,
+  'atari5200': 40,
+  'atari7800': 41,
+  'c64': 66,
+  'amiga': 64,
+  'msx': 113,
+  'msx2': 113,
+  'pico8': 234,
+  'scummvm': 123,
+  'zxspectrum': 76
+};
+
+// Konsol adına göre ScreenScraper ID'sini çözer
+function getScreenScraperSystemId(activeConsole) {
+  const key = activeConsole.toLowerCase();
+  return SCREENSCRAPER_SYSTEM_IDS[key] || 75; // Bulunamazsa Arcade/MAME (75) varsayılan
+}
+
+// Güvenilir ve kendi kendini onaran (self-healing) CORS proxy zinciri
+async function fetchWithCorsProxy(targetUrl) {
+  const proxies = [
+    url => `https://api.allorigins.win/raw?url=` + encodeURIComponent(url),
+    url => `https://corsproxy.io/?` + encodeURIComponent(url),
+    url => `https://thingproxy.freeboard.io/fetch/` + url,
+    url => `https://api.codetabs.com/v1/proxy?quest=` + encodeURIComponent(url)
+  ];
+  let lastError = null;
+  for (const proxyFn of proxies) {
+    try {
+      const proxiedUrl = proxyFn(targetUrl);
+      console.log(`CORS Proxy deneniyor: ${proxiedUrl}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 saniye zaman aşımı
+      
+      const response = await fetch(proxiedUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        return response;
+      }
+      console.warn(`Proxy başarısız oldu (Status: ${response.status})`);
+    } catch (err) {
+      console.warn("Proxy bağlantı hatası veya zaman aşımı:", err);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("Tüm CORS Proxy sunucuları başarısız oldu.");
+}
+
 // --- Offline & Online Scraper Engine ---
 async function triggerOnlineScrape() {
   if (!selectedRom || !activeConsole) return;
@@ -2073,115 +2280,163 @@ async function triggerOnlineScrape() {
   btn.innerHTML = `🌀 Scrape ediliyor...`;
 
   try {
-    // 1. First seek in our Dahili Retro Game DB (rom_db.js)
+    // 1. Önce dahili retro veritabanında ara (Dahili Hızlı Çevrimdışı Eşleştirme)
     let dbMatch = null;
     const filenameLower = selectedRom.filename.toLowerCase();
 
     if (typeof RETRO_GAME_DB !== 'undefined') {
       dbMatch = RETRO_GAME_DB.find(game => {
-        // Match system and keywords
         if (game.system !== activeConsole) return false;
-        
         return game.filenameKeywords.some(kw => filenameLower.includes(kw)) ||
                filenameLower.includes(game.title.toLowerCase());
       });
     }
 
-    // 2. If matched in DB, present immediately!
+    // Eşleşme bulunduysa anında göster
     if (dbMatch) {
       setTimeout(() => {
         btn.disabled = false;
         btn.innerHTML = originalText;
         presentScrapeMatches([dbMatch]);
-      }, 800);
+      }, 600);
       return;
     }
 
-    // 3. Dynamic API scraper: Query Open Library API or simulate retro game lookup
-    // Since it's fully platform-agnostic client, let's search OpenLibrary for cover art/details as generic fallback
-    const searchQuery = encodeURIComponent(selectedRom.title);
-    const response = await fetch(`https://openlibrary.org/search.json?q=${searchQuery}&limit=3`);
+    // 2. ScreenScraper API v2 Entegrasyonu
+    const scraper = currentProfile.scraper;
+    if (!scraper || !scraper.ssid || !scraper.sspassword) {
+      alert("⚠️ ScreenScraper API'sini kullanabilmek için lütfen sol menüdeki 'Ayarları Düzenle' butonuna basarak 'SCRAPER HESAP AYARLARI' kısmından ScreenScraper.fr kullanıcı adı ve şifrenizi girin.\n\n(Ücretsiz üyelik alıp diskinizi sıfır hata ve tanıtım videolarıyla taratabilirsiniz!)");
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      return;
+    }
+
+    const ssid = scraper.ssid;
+    const sspassword = scraper.sspassword;
+    const devid = scraper.devid || "retrotool";
+    const devpassword = scraper.devpassword || "devpwd";
+    const systemId = getScreenScraperSystemId(activeConsole);
+
+    // API İstek URL'i oluştur
+    const targetUrl = `https://www.screenscraper.fr/api2/jeuInfos.php?devid=${devid}&devpassword=${devpassword}&softname=retromgr&ssid=${ssid}&sspassword=${sspassword}&output=json&systemeid=${systemId}&romnom=${encodeURIComponent(selectedRom.filename)}`;
+
+    btn.innerHTML = `🔍 Sunucu Aranıyor...`;
+    const response = await fetchWithCorsProxy(targetUrl);
     
     if (response.ok) {
       const data = await response.json();
-      const matches = [];
-
-      if (data.docs && data.docs.length > 0) {
-        data.docs.forEach((doc, idx) => {
-          // Construct a mock retro game based on book metadata (fully visual fallback!)
-          const title = doc.title;
-          const author = doc.author_name ? doc.author_name[0] : "Retro Classic";
-          const publishYear = doc.first_publish_year || "1995";
-          
-          let coverUrl = "";
-          if (doc.cover_i) {
-            coverUrl = `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`;
-          } else {
-            // Default placeholder image
-            coverUrl = consoleData[activeConsole].config.defaultCart;
-          }
-
-          matches.push({
-            id: `ol-${idx}-${doc.key.split('/').pop()}`,
-            title: `${title} (Classic)`,
-            system: activeConsole,
-            developer: author,
-            publisher: doc.publisher ? doc.publisher[0] : "Retro Classics",
-            releasedate: `${publishYear}-01-01`,
-            genre: "Action / Platform",
-            players: "1",
-            rating: "0.85",
-            description: `${title} - Efsanevi retro oyun dünyasının büyülü esintileri ile donatılmış harika bir yapım.`,
-            image: coverUrl
-          });
-        });
+      
+      // API Hatası Kontrolü (Hatalı hesap bilgileri vb.)
+      if (data.response && data.response.errcode) {
+        const err = data.response.errcode;
+        if (err === 1 || err === 2 || err === 3) {
+          alert(`⚠️ ScreenScraper Kimlik Hatası: Girdiğiniz kullanıcı adı veya şifre yanlış!\n\nLütfen sol paneldeki profil ayarlarından hesap bilgilerinizi düzeltin.`);
+        } else if (err === 17) {
+          alert(`⚠️ ScreenScraper Kotası Aşıldı: Günlük sorgu limitinize ulaştınız ya da sunucu şu anda yoğun!`);
+        } else {
+          console.warn("ScreenScraper API kodu hata:", err);
+          alert(`ScreenScraper hatası oluştu (Kod: ${err}). Arama yapılamadı.`);
+        }
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        return;
       }
 
-      // Add a fuzzy mock game matched to the exact filename as fallback in case API returns weird things
-      matches.push({
-        id: "mock-custom",
-        title: selectedRom.title,
-        system: activeConsole,
-        developer: "Indie Dev",
-        publisher: "Retro Classic",
-        releasedate: "1994-06-15",
-        genre: "Action / Arcade",
-        players: "2",
-        rating: "0.90",
-        description: `${selectedRom.title} - Retro el konsollarında keyifle oynayabileceğiniz, klasikleşmiş oynanış yapısına sahip eğlenceli yapım.`,
-        image: consoleData[activeConsole].config.defaultCart
-      });
+      if (data.response && data.response.jeu) {
+        const jeu = data.response.jeu;
+        const matches = [];
 
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-      presentScrapeMatches(matches);
+        // A. Oyun Başlığı Çöz (Türkçe -> İngilizce -> Varsayılan)
+        let title = selectedRom.title;
+        if (jeu.noms && jeu.noms.length > 0) {
+          const trName = jeu.noms.find(n => n.langue.toLowerCase() === 'tr');
+          const enName = jeu.noms.find(n => n.langue.toLowerCase() === 'en');
+          title = trName ? trName.nom : (enName ? enName.nom : jeu.noms[0].nom);
+        }
 
+        // B. Açıklama Çöz (Türkçe -> İngilizce -> Varsayılan)
+        let desc = "";
+        if (jeu.synopsis && jeu.synopsis.length > 0) {
+          const trDesc = jeu.synopsis.find(s => s.langue.toLowerCase() === 'tr');
+          const enDesc = jeu.synopsis.find(s => s.langue.toLowerCase() === 'en');
+          desc = trDesc ? trDesc.texte : (enDesc ? enDesc.texte : jeu.synopsis[0].texte);
+        }
+
+        // C. Tür Çöz (Türkçe -> İngilizce -> Varsayılan)
+        let genre = "Action / Retro";
+        if (jeu.genres && jeu.genres.length > 0) {
+          const trGenre = jeu.genres[0].noms.find(n => n.langue.toLowerCase() === 'tr');
+          const enGenre = jeu.genres[0].noms.find(n => n.langue.toLowerCase() === 'en');
+          genre = trGenre ? trGenre.nom : (enGenre ? enGenre.nom : jeu.genres[0].noms[0].nom);
+        }
+
+        // D. Yapımcı ve Yayıncı Çöz
+        const developer = jeu.developpeur ? jeu.developpeur.nom : "Retro Dev";
+        const publisher = jeu.editeur ? jeu.editeur.nom : "Retro Classics";
+
+        // E. Yayın Tarihi Çöz
+        let releaseDate = "";
+        if (jeu.dates && jeu.dates.length > 0) {
+          const euDate = jeu.dates.find(d => d.region.toLowerCase() === 'eu');
+          const usDate = jeu.dates.find(d => d.region.toLowerCase() === 'us');
+          const rawDate = euDate ? euDate.date : (usDate ? usDate.date : jeu.dates[0].date);
+          if (rawDate && rawDate.length >= 4) {
+            releaseDate = rawDate.includes('-') ? rawDate : `${rawDate}-01-01`;
+          }
+        }
+
+        // F. Oyuncu Sayısı ve Puan Çöz
+        const players = jeu.joueurs ? jeu.joueurs.toString() : "1";
+        let rating = "0.80";
+        if (jeu.note && jeu.note.valeur) {
+          rating = (parseFloat(jeu.note.valeur) / 20).toFixed(2); // 20 üzerinden puanı 0.0 - 1.0 aralığına normalize et
+        }
+
+        // G. Medya URL'leri Çöz (2D Kapak ve Video)
+        let boxartUrl = "";
+        let videoUrl = "";
+        if (jeu.medias && jeu.medias.length > 0) {
+          const box2d = jeu.medias.find(m => m.type.toLowerCase() === 'box-2d');
+          const box3d = jeu.medias.find(m => m.type.toLowerCase() === 'box-3d');
+          const screen = jeu.medias.find(m => m.type.toLowerCase() === 'screenshot');
+          boxartUrl = box2d ? box2d.url : (box3d ? box3d.url : (screen ? screen.url : ""));
+
+          const vid = jeu.medias.find(m => m.type.toLowerCase() === 'video');
+          if (vid) videoUrl = vid.url;
+        }
+
+        matches.push({
+          id: `ss-${jeu.id || 'game'}`,
+          title: title,
+          system: activeConsole,
+          developer: developer,
+          publisher: publisher,
+          releasedate: releaseDate,
+          genre: genre,
+          players: players,
+          rating: rating,
+          description: desc,
+          image: boxartUrl || consoleData[activeConsole].config.defaultCart,
+          video: videoUrl
+        });
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        presentScrapeMatches(matches);
+        return;
+      } else {
+        alert("🔍 ScreenScraper veritabanında bu ROM dosyasına ait hiçbir kayıt bulunamadı!");
+      }
     } else {
-      throw new Error("API hatası");
+      throw new Error("CORS Proxy veya Sunucu bağlantı hatası");
     }
-
   } catch (err) {
-    console.error("Scraper hatası, yerel eşleştirme ile devam ediliyor:", err);
-    
-    // Offline simulation fallback match
-    const customMatch = {
-      id: "mock-custom-fallback",
-      title: selectedRom.title,
-      system: activeConsole,
-      developer: "Retro Devs",
-      publisher: "Arcade Co.",
-      releasedate: "1992-10-01",
-      genre: "Classic / Arcade",
-      players: "1-2",
-      rating: "0.85",
-      description: `${selectedRom.title} - Nostalji dolu bir oyun deneyimi vadeden, retro donanımların tüm sınırlarını zorlayan harika bir macera oyunu.`,
-      image: consoleData[activeConsole].config.defaultCart
-    };
-
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-    presentScrapeMatches([customMatch]);
+    console.error("Online scraper hatası:", err);
+    alert("⚠️ İnternetten scrape etme isteği başarısız oldu! Lütfen internet bağlantınızı veya CORS Proxy durumunu kontrol edin.");
   }
+
+  btn.disabled = false;
+  btn.innerHTML = originalText;
 }
 
 // --- Present Scrape Results in Modal Dialog ---
@@ -2219,7 +2474,7 @@ function presentScrapeMatches(matches) {
   modal.classList.add('active');
 }
 
-// --- Apply Scraped Metadata & Automatically Download & Write Cover Art to SD Card ---
+// --- Apply Scraped Metadata & Automatically Download & Write Cover Art and Videos to SD Card ---
 async function applyScrapedGameMetadata(scraped) {
   if (!selectedRom || !activeConsole) return;
 
@@ -2238,20 +2493,21 @@ async function applyScrapedGameMetadata(scraped) {
   selectedRom.players = scraped.players;
   selectedRom.description = scraped.description;
 
-  // 1. Try to download and write the cover image blob directly into the SD card!
   const system = consoleData[activeConsole];
-  let writtenSuccessfully = false;
+  const safeTitle = scraped.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+
+  // 1. Download and save the cover image blob directly into the SD card!
+  let imgWrittenSuccessfully = false;
   let localImgPath = "";
 
-  if (scraped.image && !scraped.image.includes('unsplash.com')) {
+  if (scraped.image && !scraped.image.includes('unsplash.com') && scraped.image !== system.config.defaultCart) {
     try {
-      // Download the image using a CORS-safe fetch
-      const imgResponse = await fetch(scraped.image);
+      // Download the image using a CORS-safe proxy fetch
+      const imgResponse = await fetchWithCorsProxy(scraped.image);
       if (imgResponse.ok) {
         const imageBlob = await imgResponse.blob();
         
         let imagesHandle = null;
-        const safeTitle = scraped.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
         const imgFilename = `${safeTitle}.png`;
 
         if (currentProfile.paths.imagesLoc === 'root-separate') {
@@ -2282,7 +2538,8 @@ async function applyScrapedGameMetadata(scraped) {
         // Update local object URL and XML paths
         selectedRom.image = URL.createObjectURL(imageBlob);
         selectedRom.localImagePath = localImgPath;
-        writtenSuccessfully = true;
+        imgWrittenSuccessfully = true;
+        console.log(`Görsel başarıyla kaydedildi: ${localImgPath}`);
       }
     } catch (err) {
       console.warn("Kapak resmi SD karta yazılamadı (CORS veya disk izni):", err);
@@ -2290,8 +2547,59 @@ async function applyScrapedGameMetadata(scraped) {
   }
 
   // If download failed or was skipped, use original matched image URL
-  if (!writtenSuccessfully) {
+  if (!imgWrittenSuccessfully && scraped.image) {
     selectedRom.image = scraped.image;
+  }
+
+  // 2. Download and save the game introduction video directly into the SD card!
+  let videoWrittenSuccessfully = false;
+  let localVideoPath = "";
+
+  if (scraped.video) {
+    try {
+      saveBtn.innerHTML = `💾 Video İndiriliyor...`;
+      // Download the video using CORS proxy fetch
+      const vidResponse = await fetchWithCorsProxy(scraped.video);
+      if (vidResponse.ok) {
+        const videoBlob = await vidResponse.blob();
+        
+        let videosHandle = null;
+        const vidExt = scraped.video.split('.').pop().split('?')[0] || "mp4";
+        const vidFilename = `${safeTitle}.${vidExt}`;
+
+        if (currentProfile.paths.imagesLoc === 'root-separate') {
+          // Save in root/Videos/<sys>/
+          const cleanVidRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
+          const vidsRootHandle = await sdCardHandle.getDirectoryHandle(cleanVidRoot, { create: true });
+          videosHandle = await vidsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
+          localVideoPath = `/${cleanVidRoot}/${system.config.id.toUpperCase()}/${vidFilename}`;
+        } else {
+          // standard subfolder - resolve dynamically using videosRoot
+          const vidDirName = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
+          const pathParts = vidDirName.split('/');
+          let currentHandle = system.dirHandle;
+          for (const part of pathParts) {
+            if (part) {
+              currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+            }
+          }
+          videosHandle = currentHandle;
+          localVideoPath = `./${vidDirName}/${vidFilename}`;
+        }
+
+        const fileHandle = await videosHandle.getFileHandle(vidFilename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(videoBlob);
+        await writable.close();
+
+        // Update local video path
+        selectedRom.video = localVideoPath;
+        videoWrittenSuccessfully = true;
+        console.log(`Video başarıyla kaydedildi: ${localVideoPath}`);
+      }
+    } catch (err) {
+      console.warn("Video SD karta yazılamadı:", err);
+    }
   }
 
   // Update UI inputs
@@ -2310,12 +2618,13 @@ async function applyScrapedGameMetadata(scraped) {
   }
 
   // Update UI and write metadata
+  saveBtn.innerHTML = `💾 Kaydediliyor...`;
   if (currentProfile.metadataStorage === 'sqlite') {
     await writeSqliteDBFile(system);
-    alert("Oyun bilgileri internetten çekildi, kapak görseli SD karttaki hedefine kaydedildi ve SQLite veritabanı güncellendi!");
+    alert("Oyun bilgileri internetten çekildi, kapak resmi ve tanıtım videosu SD karttaki hedefine kaydedildi ve SQLite veritabanı güncellendi!");
   } else {
     await writeGamelistXMLFile(system);
-    alert("Oyun bilgileri internetten çekildi, kapak görseli SD karttaki hedefine kaydedildi ve gamelist.xml güncellendi!");
+    alert("Oyun bilgileri internetten çekildi, kapak resmi ve tanıtım videosu SD karttaki hedefine kaydedildi ve gamelist.xml güncellendi!");
   }
   
   renderActiveGames();
@@ -3096,5 +3405,335 @@ async function scanGameImagesList(system, game) {
   if (game.imagesList.length > 0 && !game.image) {
     game.image = game.imagesList[0].url;
     game.localImagePath = game.imagesList[0].path;
+  }
+}
+
+// ==========================================================================
+// GAME DELETION ENGINE
+// ==========================================================================
+
+// Toplu işlemler barını seçilen oyun sayısına göre günceller
+function updateBulkActionBarUI() {
+  const bar = document.getElementById('bulk-actions-bar');
+  const countEl = document.getElementById('bulk-selected-count');
+  if (!bar) return;
+  
+  if (selectedRomsBulk.length > 0) {
+    if (countEl) countEl.textContent = selectedRomsBulk.length;
+    bar.style.display = 'flex';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+// Konsol sistemine ait görsel veya video klasör handle'ını dinamik çözer
+async function getSystemDirectoryHandle(system, type) {
+  try {
+    if (type === 'images') {
+      if (currentProfile.paths.imagesLoc === 'root-separate') {
+        const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
+        const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanRoot, { create: false });
+        return await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+      } else {
+        const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
+        const pathParts = imgDirName.split('/');
+        let currentHandle = system.dirHandle;
+        for (const part of pathParts) {
+          if (part) {
+            currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+          }
+        }
+        return currentHandle;
+      }
+    } else if (type === 'videos') {
+      if (currentProfile.paths.imagesLoc === 'root-separate') {
+        const cleanRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
+        const vidsRootHandle = await sdCardHandle.getDirectoryHandle(cleanRoot, { create: false });
+        return await vidsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+      } else {
+        const vidDirName = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
+        const pathParts = vidDirName.split('/');
+        let currentHandle = system.dirHandle;
+        for (const part of pathParts) {
+          if (part) {
+            currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+          }
+        }
+        return currentHandle;
+      }
+    }
+  } catch (err) {
+    // Klasör bulunamazsa varsayılan klasör yollarını dene (Geriye Dönük Uyumluluk)
+    try {
+      if (type === 'images') {
+        const fallbacks = ['images', 'media/images', 'downloaded_images'];
+        for (const fb of fallbacks) {
+          try {
+            let tempHandle = system.dirHandle;
+            for (const part of fb.split('/')) {
+              tempHandle = await tempHandle.getDirectoryHandle(part, { create: false });
+            }
+            return tempHandle;
+          } catch(e) {}
+        }
+      } else if (type === 'videos') {
+        const fallbacks = ['videos', 'media/videos', 'downloaded_videos'];
+        for (const fb of fallbacks) {
+          try {
+            let tempHandle = system.dirHandle;
+            for (const part of fb.split('/')) {
+              tempHandle = await tempHandle.getDirectoryHandle(part, { create: false });
+            }
+            return tempHandle;
+          } catch(e) {}
+        }
+      }
+    } catch(e) {}
+  }
+  return null;
+}
+
+// Göreli yola göre diski yürüyerek belirtilen dosyayı siler
+async function deleteFileByRelativePath(baseHandle, relativePath) {
+  if (!baseHandle || !relativePath) return false;
+  try {
+    let cleanPath = relativePath.trim();
+    if (cleanPath.startsWith('./')) {
+      cleanPath = cleanPath.substring(2);
+    }
+    if (cleanPath.startsWith('/')) {
+      cleanPath = cleanPath.substring(1);
+    }
+    
+    const parts = cleanPath.split('/').filter(p => p !== '');
+    if (parts.length === 0) return false;
+    
+    let currentHandle = baseHandle;
+    for (let i = 0; i < parts.length - 1; i++) {
+      currentHandle = await currentHandle.getDirectoryHandle(parts[i], { create: false });
+    }
+    
+    const filename = parts[parts.length - 1];
+    await currentHandle.removeEntry(filename);
+    console.log(`Dosya başarıyla silindi: ${relativePath}`);
+    return true;
+  } catch (err) {
+    console.warn(`Dosya silinemedi veya mevcut değil: ${relativePath}`, err);
+    return false;
+  }
+}
+
+// Oyuna ait tüm ilişkili resim ve video dosyalarını temizler
+async function deleteAssociatedMedia(system, game) {
+  const baseName = game.filename.substring(0, game.filename.lastIndexOf('.'));
+  
+  // 1. XML/DB veritabanında belirtilen doğrudan yolu sil
+  if (game.localImagePath) {
+    const isRootSeparate = currentProfile.paths.imagesLoc === 'root-separate';
+    const baseHandle = isRootSeparate ? sdCardHandle : system.dirHandle;
+    await deleteFileByRelativePath(baseHandle, game.localImagePath);
+  }
+  
+  // 2. Görsel ve video klasörlerinde uzantısı hariç birebir aynı olanları sil (Akıllı Suffix Eşleştirici)
+  const mediaTypes = ['images', 'videos'];
+  for (const type of mediaTypes) {
+    const dirHandle = await getSystemDirectoryHandle(system, type);
+    if (dirHandle) {
+      try {
+        for await (const entry of dirHandle.values()) {
+          if (entry.kind === 'file') {
+            const entryExtIndex = entry.name.lastIndexOf('.');
+            const entryBase = entryExtIndex !== -1 ? entry.name.substring(0, entryExtIndex) : entry.name;
+            
+            // A. Birebir uzantısız dosya adı eşleşmesi
+            const exactMatch = entryBase.toLowerCase() === baseName.toLowerCase();
+            
+            // B. Suffix (ek) eşleşmesi (örn: GameName-image.png, GameName-video.mp4)
+            let suffixMatch = false;
+            if (entryBase.toLowerCase().startsWith(baseName.toLowerCase() + '-')) {
+              const suffix = entryBase.substring(baseName.length);
+              const knownSuffixes = ["-image", "-marquee", "-thumb", "-boxart", "-titlescreen", "-screenshot", "-video"];
+              if (knownSuffixes.includes(suffix.toLowerCase())) {
+                suffixMatch = true;
+              }
+            }
+            
+            if (exactMatch || suffixMatch) {
+              try {
+                await dirHandle.removeEntry(entry.name);
+                console.log(`İlişkili medya silindi (${type}): ${entry.name}`);
+              } catch (err) {
+                console.warn(`İlişkili medya silinirken hata (${type}): ${entry.name}`, err);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`${type} klasörü taranırken hata:`, err);
+      }
+    }
+  }
+}
+
+// Tek bir oyunu ve tüm dosyalarını siler
+async function deleteSingleRom(game) {
+  if (!game || !activeConsole) return;
+  const system = consoleData[activeConsole];
+  if (!system) return;
+
+  const confirmation = confirm(`"${game.title}" oyununu ve SD karttaki tüm ilişkili medya dosyalarını (görseller, videolar vb.) KALICI olarak silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!`);
+  if (!confirmation) return;
+
+  try {
+    // 1. ROM Dosyasını Sil
+    await system.dirHandle.removeEntry(game.filename);
+    console.log(`ROM dosyası silindi: ${game.filename}`);
+
+    // 2. İlişkili Medyaları Temizle
+    await deleteAssociatedMedia(system, game);
+
+    // 3. SQLite kullanılıyorsa veritabanından sil
+    if (currentProfile.metadataStorage === 'sqlite' && system.sqliteDB) {
+      const db = system.sqliteDB;
+      const dbConfig = currentProfile.sqliteConfig;
+      const cols = dbConfig.columns;
+      const tableName = dbConfig.tableName;
+      const targetPath = game.dbRomPath || `./${game.filename}`;
+      
+      try {
+        db.run(`DELETE FROM "${tableName}" WHERE "${cols.filename}" = :romPath`, { ':romPath': targetPath });
+        
+        // İsme göre alternatif eşleşen yolları da temizle
+        const checkQuery2 = `SELECT "${cols.filename}" FROM "${tableName}"`;
+        const checkResult2 = db.exec(checkQuery2);
+        if (checkResult2 && checkResult2.length > 0) {
+          for (const val of checkResult2[0].values) {
+            const pathInDb = val[0];
+            if (cleanPathForMatching(pathInDb) === cleanPathForMatching(game.filename)) {
+              db.run(`DELETE FROM "${tableName}" WHERE "${cols.filename}" = :romPath`, { ':romPath': pathInDb });
+            }
+          }
+        }
+        await writeSqliteDBFile(system);
+      } catch (dbErr) {
+        console.error("SQLite kaydı silinirken hata:", dbErr);
+      }
+    }
+
+    // 4. Bellekten çıkar
+    system.games = system.games.filter(g => g !== game);
+
+    // 5. XML kullanılıyorsa veritabanını yeniden yaz
+    if (currentProfile.metadataStorage === 'xml') {
+      await writeGamelistXMLFile(system);
+    }
+
+    // 6. Inspector detay ekranını temizle ve seçimi kaldır
+    if (selectedRom === game) {
+      clearInspector();
+    }
+    selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+    updateBulkActionBarUI();
+
+    // 7. Arayüzü yeniden çiz
+    renderSidebarConsoles();
+    renderActiveGames();
+    
+    alert(`"${game.title}" oyunu başarıyla silindi.`);
+  } catch (err) {
+    console.error("Oyun silinirken hata:", err);
+    alert(`Hata: Oyun silinemedi! Lütfen dosya izinlerini ve SD kart bağlantısını kontrol edin.\nDetay: ${err.message}`);
+  }
+}
+
+// Seçilen tüm oyunları ve dosyalarını toplu olarak siler
+async function deleteBulkRoms() {
+  if (selectedRomsBulk.length === 0 || !activeConsole) return;
+  const system = consoleData[activeConsole];
+  if (!system) return;
+
+  const count = selectedRomsBulk.length;
+  const confirmation = confirm(`Seçilen ${count} adet oyunu ve SD karttaki tüm ilişkili medya dosyalarını (görseller, videolar vb.) KALICI olarak silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!`);
+  if (!confirmation) return;
+
+  // Yükleniyor overlay gösterimi
+  const container = document.getElementById('game-grid-container');
+  container.innerHTML = `
+    <div class="empty-state">
+      <div class="loader-container" style="display:flex; flex-direction:column; align-items:center; gap:15px">
+        <div class="loader-dot"></div>
+        <h3 class="empty-title">Oyunlar Siliniyor...</h3>
+        <p class="empty-desc">Seçilen ${count} oyun ve ilgili tüm medya dosyaları SD karttan temizleniyor. Lütfen bekleyin.</p>
+      </div>
+    </div>
+  `;
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const game of selectedRomsBulk) {
+    try {
+      // 1. ROM Sil
+      await system.dirHandle.removeEntry(game.filename);
+      
+      // 2. Medya Temizle
+      await deleteAssociatedMedia(system, game);
+
+      // 3. SQLite'tan sil
+      if (currentProfile.metadataStorage === 'sqlite' && system.sqliteDB) {
+        const db = system.sqliteDB;
+        const dbConfig = currentProfile.sqliteConfig;
+        const cols = dbConfig.columns;
+        const tableName = dbConfig.tableName;
+        const targetPath = game.dbRomPath || `./${game.filename}`;
+        try {
+          db.run(`DELETE FROM "${tableName}" WHERE "${cols.filename}" = :romPath`, { ':romPath': targetPath });
+          
+          const checkQuery2 = `SELECT "${cols.filename}" FROM "${tableName}"`;
+          const checkResult2 = db.exec(checkQuery2);
+          if (checkResult2 && checkResult2.length > 0) {
+            for (const val of checkResult2[0].values) {
+              const pathInDb = val[0];
+              if (cleanPathForMatching(pathInDb) === cleanPathForMatching(game.filename)) {
+                db.run(`DELETE FROM "${tableName}" WHERE "${cols.filename}" = :romPath`, { ':romPath': pathInDb });
+              }
+            }
+          }
+        } catch(e) {}
+      }
+
+      // 4. Bellekten çıkar
+      system.games = system.games.filter(g => g !== game);
+      successCount++;
+    } catch (err) {
+      console.error(`Oyun silinemedi: ${game.filename}`, err);
+      failCount++;
+    }
+  }
+
+  // 5. Değişiklikleri diske kaydet
+  try {
+    if (currentProfile.metadataStorage === 'sqlite' && system.sqliteDB) {
+      await writeSqliteDBFile(system);
+    } else if (currentProfile.metadataStorage === 'xml') {
+      await writeGamelistXMLFile(system);
+    }
+  } catch (err) {
+    console.error("Silme sonrası veritabanı yazma hatası:", err);
+  }
+
+  // Durumları sıfırla
+  selectedRomsBulk = [];
+  clearInspector();
+  updateBulkActionBarUI();
+
+  // Yeniden çiz
+  renderSidebarConsoles();
+  renderActiveGames();
+
+  if (failCount === 0) {
+    alert(`Seçilen ${successCount} adet oyun başarıyla silindi.`);
+  } else {
+    alert(`Silme işlemi tamamlandı.\nBaşarıyla Silinen: ${successCount}\nSilinemeyen: ${failCount}\nLütfen SD kart izinlerinizi kontrol edin.`);
   }
 }
