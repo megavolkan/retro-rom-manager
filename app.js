@@ -1021,6 +1021,7 @@ async function scanSDCardDirectories() {
   try {
     for await (const entry of romsRootHandle.values()) {
       if (entry.kind === 'directory') {
+        if (entry.name.startsWith('.')) continue; // Skip hidden macOS/system directories
         entries.push(entry);
       }
     }
@@ -1083,6 +1084,7 @@ async function scanROMFilesInDirectory(system) {
 
   for await (const entry of dirHandle.values()) {
     if (entry.kind === 'file') {
+      if (entry.name.startsWith('.')) continue; // Skip hidden macOS AppleDouble and system files
       const ext = entry.name.split('.').pop().toLowerCase();
       if (extensions.includes(ext)) {
         system.games.push({
