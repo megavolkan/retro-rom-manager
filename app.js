@@ -710,8 +710,8 @@ function initUIBindings() {
 
         // Populate Advanced Settings
         document.getElementById('inp-adv-roms-root').value = currentProfile.paths.romsRoot || "";
-        document.getElementById('inp-adv-images-root').value = currentProfile.paths.imagesRoot || "media/images";
-        document.getElementById('inp-adv-videos-root').value = currentProfile.paths.videosRoot || "media/videos";
+        document.getElementById('inp-adv-images-root').value = currentProfile.paths.imagesRoot || "./images";
+        document.getElementById('inp-adv-videos-root').value = currentProfile.paths.videosRoot || "./videos";
 
         // Show delete button since profile exists
         if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
@@ -949,8 +949,8 @@ async function saveDeviceProfileAndStart() {
   currentProfile.preset = presetVal;
   
   const customRomsRoot = document.getElementById('inp-adv-roms-root').value.trim();
-  const customImagesRoot = document.getElementById('inp-adv-images-root').value.trim() || "media/images";
-  const customVideosRoot = document.getElementById('inp-adv-videos-root').value.trim() || "media/videos";
+  const customImagesRoot = document.getElementById('inp-adv-images-root').value.trim() || "./images";
+  const customVideosRoot = document.getElementById('inp-adv-videos-root').value.trim() || "./videos";
   
   let imagesLocVal = "roms-sub";
   if (presetVal === 'crossmix') {
@@ -2256,14 +2256,22 @@ async function applyScrapedGameMetadata(scraped) {
 
         if (currentProfile.paths.imagesLoc === 'root-separate') {
           // Save in root/Imgs/<sys>/
-          const imgsRootHandle = await sdCardHandle.getDirectoryHandle(currentProfile.paths.imagesRoot, { create: true });
+          const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
+          const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: true });
           imagesHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
-          localImgPath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${imgFilename}`;
+          localImgPath = `/${cleanImgRoot}/${system.config.id.toUpperCase()}/${imgFilename}`;
         } else {
-          // Standard /media/images inside console folder
-          const mediaHandle = await system.dirHandle.getDirectoryHandle('media', { create: true });
-          imagesHandle = await mediaHandle.getDirectoryHandle('images', { create: true });
-          localImgPath = `./media/images/${imgFilename}`;
+          // standard subfolder - resolve dynamically using imagesRoot
+          const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
+          const pathParts = imgDirName.split('/');
+          let currentHandle = system.dirHandle;
+          for (const part of pathParts) {
+            if (part) {
+              currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+            }
+          }
+          imagesHandle = currentHandle;
+          localImgPath = `./${imgDirName}/${imgFilename}`;
         }
 
         const fileHandle = await imagesHandle.getFileHandle(imgFilename, { create: true });
@@ -2346,14 +2354,22 @@ async function selectManualCoverImage() {
 
     if (currentProfile.paths.imagesLoc === 'root-separate') {
       // Save in root/Imgs/<sys>/
-      const imgsRootHandle = await sdCardHandle.getDirectoryHandle(currentProfile.paths.imagesRoot, { create: true });
+      const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
+      const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: true });
       imagesHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
-      localImgPath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${imgFilename}`;
+      localImgPath = `/${cleanImgRoot}/${system.config.id.toUpperCase()}/${imgFilename}`;
     } else {
-      // Standard /media/images inside console folder
-      const mediaHandle = await system.dirHandle.getDirectoryHandle('media', { create: true });
-      imagesHandle = await mediaHandle.getDirectoryHandle('images', { create: true });
-      localImgPath = `./media/images/${imgFilename}`;
+      // standard subfolder - resolve dynamically using imagesRoot
+      const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
+      const pathParts = imgDirName.split('/');
+      let currentHandle = system.dirHandle;
+      for (const part of pathParts) {
+        if (part) {
+          currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+        }
+      }
+      imagesHandle = currentHandle;
+      localImgPath = `./${imgDirName}/${imgFilename}`;
     }
 
     const destFileHandle = await imagesHandle.getFileHandle(imgFilename, { create: true });
@@ -2836,12 +2852,25 @@ async function writeSqliteDBFile(system) {
     }
     
     let localPath = game.localImagePath;
-    if (!localPath && game.image && game.image.startsWith('blob:')) {
+    if (localPath) {
+      if (currentProfile.paths.imagesLoc === 'root-separate') {
+        const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
+        const filename = localPath.split('/').pop();
+        localPath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${filename}`;
+      } else {
+        const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
+        const filename = localPath.split('/').pop();
+        localPath = `./${cleanRoot}/${filename}`;
+      }
+      game.localImagePath = localPath;
+    } else if (game.image && game.image.startsWith('blob:')) {
       const safeTitle = game.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
       if (currentProfile.paths.imagesLoc === 'root-separate') {
-        localPath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${safeTitle}.png`;
+        const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
+        localPath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${safeTitle}.png`;
       } else {
-        localPath = `./media/images/${safeTitle}.png`;
+        const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
+        localPath = `./${cleanRoot}/${safeTitle}.png`;
       }
       game.localImagePath = localPath;
     }
@@ -3035,9 +3064,11 @@ async function scanGameImagesList(system, game) {
           
           let relativePath = "";
           if (currentProfile.paths.imagesLoc === 'root-separate') {
-            relativePath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}${suffix}.${resolvedExt}`;
+            const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
+            relativePath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${baseName}${suffix}.${resolvedExt}`;
           } else {
-            relativePath = `./${currentProfile.paths.imagesRoot || "media/images"}/${baseName}${suffix}.${resolvedExt}`;
+            const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
+            relativePath = `./${cleanRoot}/${baseName}${suffix}.${resolvedExt}`;
           }
           
           game.imagesList.push({

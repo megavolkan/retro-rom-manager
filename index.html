@@ -311,8 +311,8 @@
             <div class="form-field">
               <label class="form-label">Görsel (Images) Klasör Konumu</label>
               <select class="form-input" id="sel-custom-images-loc" style="background:#161925; color:#fff">
-                <option value="roms-sub">ROM Klasörünün İçi (media/images/)</option>
-                <option value="root-separate">Kök Dizininde Ayrı Klasör (Örn: Imgs/)</option>
+                <option value="roms-sub">ROM Klasörünün İçi (Örn: ./images/)</option>
+                <option value="root-separate">Kök Dizininde Ayrı Klasör (Örn: /Imgs/)</option>
               </select>
             </div>
             <div id="custom-images-folder-field" class="form-field" style="display:none">
@@ -329,15 +329,15 @@
             <div id="advanced-paths-group" style="display:none; flex-direction:column; gap:12px; margin-top:12px; background:rgba(0,0,0,0.15); padding:12px; border-radius:6px; border:1px solid rgba(255,255,255,0.02)">
               <div class="form-field">
                 <label class="form-label">Görsel (Images) Klasörü Yolu</label>
-                <input type="text" class="form-input" id="inp-adv-images-root" placeholder="Örn: media/images veya images" value="media/images">
+                <input type="text" class="form-input" id="inp-adv-images-root" placeholder="Örn: ./images veya ./media/images" value="./images">
               </div>
               <div class="form-field">
                 <label class="form-label">ROM Klasörü (ROMs) Yolu</label>
-                <input type="text" class="form-input" id="inp-adv-roms-root" placeholder="Örn: Roms veya boş bırakın" value="">
+                <input type="text" class="form-input" id="inp-adv-roms-root" placeholder="Örn: ./Roms veya boş bırakın" value="">
               </div>
               <div class="form-field">
                 <label class="form-label">Video Klasörü (Videos) Yolu</label>
-                <input type="text" class="form-input" id="inp-adv-videos-root" placeholder="Örn: media/videos veya videos" value="media/videos">
+                <input type="text" class="form-input" id="inp-adv-videos-root" placeholder="Örn: ./videos veya ./media/videos" value="./videos">
               </div>
               <div style="display:flex; justify-content:flex-end">
                 <button type="button" class="filter-btn" id="btn-reset-adv-defaults" style="font-size:0.65rem; padding:4px 10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1)">Varsayılanlara Dön</button>
