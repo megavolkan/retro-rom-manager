@@ -2317,6 +2317,23 @@ function setupDragAndDrop() {
     }
   });
 
+  // Close dropzone on click (Cancel action)
+  dropzone.addEventListener('click', () => {
+    dropzone.classList.remove('active');
+  });
+
+  // Close dropzone on Escape keypress
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      dropzone.classList.remove('active');
+    }
+  });
+
+  // Remove dropzone on dragend
+  window.addEventListener('dragend', () => {
+    dropzone.classList.remove('active');
+  });
+
   dropzone.addEventListener('drop', async (e) => {
     e.preventDefault();
     dropzone.classList.remove('active');
