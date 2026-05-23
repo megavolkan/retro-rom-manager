@@ -321,6 +321,30 @@
             </div>
           </div>
 
+          <!-- Advanced Paths Config Group (Collapsible) -->
+          <div style="border-top:1px solid rgba(255,255,255,0.05); padding-top:15px; margin-top:15px;">
+            <button type="button" id="btn-toggle-advanced-paths" class="filter-btn" style="width:100%; justify-content:space-between; font-weight:600; font-family:var(--font-tech); font-size:0.75rem; letter-spacing:0.5px">
+              ⚙️ GELİŞMİŞ KLASÖR AYARLARI <span id="adv-toggle-icon">▼</span>
+            </button>
+            <div id="advanced-paths-group" style="display:none; flex-direction:column; gap:12px; margin-top:12px; background:rgba(0,0,0,0.15); padding:12px; border-radius:6px; border:1px solid rgba(255,255,255,0.02)">
+              <div class="form-field">
+                <label class="form-label">Görsel (Images) Klasörü Yolu</label>
+                <input type="text" class="form-input" id="inp-adv-images-root" placeholder="Örn: media/images veya images" value="media/images">
+              </div>
+              <div class="form-field">
+                <label class="form-label">ROM Klasörü (ROMs) Yolu</label>
+                <input type="text" class="form-input" id="inp-adv-roms-root" placeholder="Örn: Roms veya boş bırakın" value="">
+              </div>
+              <div class="form-field">
+                <label class="form-label">Video Klasörü (Videos) Yolu</label>
+                <input type="text" class="form-input" id="inp-adv-videos-root" placeholder="Örn: media/videos veya videos" value="media/videos">
+              </div>
+              <div style="display:flex; justify-content:flex-end">
+                <button type="button" class="filter-btn" id="btn-reset-adv-defaults" style="font-size:0.65rem; padding:4px 10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1)">Varsayılanlara Dön</button>
+              </div>
+            </div>
+          </div>
+
           <div style="display:flex; gap:10px; margin-top:20px; width:100%">
             <button class="scrape-btn" id="btn-save-profile" style="flex:1">💾 Profili Kaydet</button>
             <button class="filter-btn" id="btn-delete-profile" style="background:rgba(255, 56, 96, 0.15); border:1px solid hsl(var(--retro-red)); color:#fff; display:none" title="Profil Ayarlarını Sil">🗑️ Profili Sil</button>

@@ -625,6 +625,9 @@ function initUIBindings() {
         document.getElementById('sel-profile-storage').value = 'xml';
         document.getElementById('sqlite-config-group').style.display = 'none';
       }
+      
+      // Update advanced path default values
+      updateAdvancedPathsDefaults(preset);
     });
   }
 
@@ -705,6 +708,11 @@ function initUIBindings() {
           }
         }
 
+        // Populate Advanced Settings
+        document.getElementById('inp-adv-roms-root').value = currentProfile.paths.romsRoot || "";
+        document.getElementById('inp-adv-images-root').value = currentProfile.paths.imagesRoot || "media/images";
+        document.getElementById('inp-adv-videos-root').value = currentProfile.paths.videosRoot || "media/videos";
+
         // Show delete button since profile exists
         if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
 
@@ -717,6 +725,27 @@ function initUIBindings() {
   if (closeProfileBtn) {
     closeProfileBtn.addEventListener('click', () => {
       document.getElementById('profile-modal').classList.remove('active');
+    });
+  }
+
+  // Advanced Paths Collapsible Toggle
+  const btnToggleAdv = document.getElementById('btn-toggle-advanced-paths');
+  const advGroup = document.getElementById('advanced-paths-group');
+  const advIcon = document.getElementById('adv-toggle-icon');
+  if (btnToggleAdv && advGroup) {
+    btnToggleAdv.addEventListener('click', () => {
+      const isHidden = advGroup.style.display === 'none';
+      advGroup.style.display = isHidden ? 'flex' : 'none';
+      if (advIcon) advIcon.textContent = isHidden ? '▲' : '▼';
+    });
+  }
+
+  // Reset Advanced Defaults Button
+  const btnResetAdv = document.getElementById('btn-reset-adv-defaults');
+  if (btnResetAdv) {
+    btnResetAdv.addEventListener('click', () => {
+      const preset = document.getElementById('sel-profile-preset').value;
+      updateAdvancedPathsDefaults(preset);
     });
   }
 
@@ -741,6 +770,36 @@ function initUIBindings() {
 
   // Drag and Drop ROM Loader Integration
   setupDragAndDrop();
+}
+
+// --- Update Advanced Folder Paths Default Inputs ---
+function updateAdvancedPathsDefaults(preset) {
+  const inpAdvImages = document.getElementById('inp-adv-images-root');
+  const inpAdvRoms = document.getElementById('inp-adv-roms-root');
+  const inpAdvVideos = document.getElementById('inp-adv-videos-root');
+  
+  if (!inpAdvImages || !inpAdvRoms || !inpAdvVideos) return;
+  
+  if (preset === 'standard') {
+    inpAdvRoms.value = "";
+    inpAdvImages.value = "media/images";
+    inpAdvVideos.value = "media/videos";
+  } else if (preset === 'crossmix') {
+    inpAdvRoms.value = "Roms";
+    inpAdvImages.value = "Imgs";
+    inpAdvVideos.value = "media/videos";
+  } else if (preset === 'r36s') {
+    inpAdvRoms.value = "";
+    inpAdvImages.value = "images";
+    inpAdvVideos.value = "videos";
+  } else if (preset === 'custom') {
+    inpAdvRoms.value = document.getElementById('inp-custom-roms').value.trim();
+    const imgLoc = document.getElementById('sel-custom-images-loc').value;
+    inpAdvImages.value = imgLoc === 'root-separate' ? 
+      document.getElementById('inp-custom-images-dir').value.trim() || "Imgs" : 
+      "media/images";
+    inpAdvVideos.value = "media/videos";
+  }
 }
 
 // --- File System: Select SD Card Root Directory ---
@@ -817,6 +876,9 @@ async function initWorkspaceFromHandle() {
       document.getElementById('sel-profile-preset').value = "standard";
       document.getElementById('custom-paths-group').style.display = "none";
       
+      // Update advanced default paths
+      updateAdvancedPathsDefaults("standard");
+      
       // Hide delete button since no profile has been saved yet
       const deleteProfileBtn = document.getElementById('btn-delete-profile');
       if (deleteProfileBtn) deleteProfileBtn.style.display = "none";
@@ -881,38 +943,23 @@ async function saveDeviceProfileAndStart() {
   currentProfile.cardName = nameVal;
   currentProfile.preset = presetVal;
   
-  if (presetVal === 'standard') {
-    currentProfile.paths = {
-      romsRoot: "",
-      imagesRoot: "media/images",
-      imagesLoc: "roms-sub"
-    };
-  } else if (presetVal === 'crossmix') {
-    currentProfile.paths = {
-      romsRoot: "Roms",
-      imagesRoot: "Imgs",
-      imagesLoc: "root-separate"
-    };
-  } else if (presetVal === 'r36s') {
-    currentProfile.paths = {
-      romsRoot: "",
-      imagesRoot: "images",
-      imagesLoc: "roms-sub"
-    };
-  } else {
-    // Custom
-    const romsDir = document.getElementById('inp-custom-roms').value.trim();
-    const imgLoc = document.getElementById('sel-custom-images-loc').value;
-    const imgDir = imgLoc === 'root-separate' ? 
-      document.getElementById('inp-custom-images-dir').value.trim() || "Imgs" : 
-      "media/images";
-      
-    currentProfile.paths = {
-      romsRoot: romsDir,
-      imagesRoot: imgDir,
-      imagesLoc: imgLoc
-    };
+  const customRomsRoot = document.getElementById('inp-adv-roms-root').value.trim();
+  const customImagesRoot = document.getElementById('inp-adv-images-root').value.trim() || "media/images";
+  const customVideosRoot = document.getElementById('inp-adv-videos-root').value.trim() || "media/videos";
+  
+  let imagesLocVal = "roms-sub";
+  if (presetVal === 'crossmix') {
+    imagesLocVal = "root-separate";
+  } else if (presetVal === 'custom') {
+    imagesLocVal = document.getElementById('sel-custom-images-loc').value;
   }
+
+  currentProfile.paths = {
+    romsRoot: customRomsRoot,
+    imagesRoot: customImagesRoot,
+    videosRoot: customVideosRoot,
+    imagesLoc: imagesLocVal
+  };
 
   currentProfile.metadataStorage = document.getElementById('sel-profile-storage').value || "xml";
   
@@ -1245,7 +1292,7 @@ async function tryAutoDetectLocalImage(system, game) {
         if (currentProfile.paths.imagesLoc === 'root-separate') {
           game.localImagePath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}${resolvedSuffix}.${resolvedExt}`;
         } else {
-          game.localImagePath = `./media/images/${baseName}${resolvedSuffix}.${resolvedExt}`;
+          game.localImagePath = `./${currentProfile.paths.imagesRoot}/${baseName}${resolvedSuffix}.${resolvedExt}`;
         }
         game.isScraped = true;
         console.log(`Otomatik eşleşen görsel yüklendi: ${game.localImagePath}`);
@@ -1319,7 +1366,20 @@ async function loadLocalImageBlob(system, game, imagePath) {
         const imgsRootHandle = await sdCardHandle.getDirectoryHandle(currentProfile.paths.imagesRoot, { create: false });
         sysImgsHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
       } else {
-        sysImgsHandle = await system.dirHandle.getDirectoryHandle('media/images', { create: false });
+        const imgDirName = currentProfile.paths.imagesRoot || "media/images";
+        const pathParts = imgDirName.split('/');
+        let currentHandle = system.dirHandle;
+        for (const part of pathParts) {
+          if (part) {
+            try {
+              currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+            } catch(e) {
+              currentHandle = null;
+              break;
+            }
+          }
+        }
+        sysImgsHandle = currentHandle;
       }
 
       if (sysImgsHandle) {
@@ -1347,7 +1407,7 @@ async function loadLocalImageBlob(system, game, imagePath) {
           game.image = URL.createObjectURL(file);
           game.localImagePath = currentProfile.paths.imagesLoc === 'root-separate' ? 
             `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}${resolvedSuffix}.${resolvedExt}` : 
-            `./media/images/${baseName}${resolvedSuffix}.${resolvedExt}`;
+            `./${currentProfile.paths.imagesRoot}/${baseName}${resolvedSuffix}.${resolvedExt}`;
         }
       }
     } catch(e_fallback) {
@@ -1886,7 +1946,7 @@ async function writeGamelistXMLFile(system) {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         localPath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${safeTitle}.png`;
       } else {
-        localPath = `./media/images/${safeTitle}.png`;
+        localPath = `./${currentProfile.paths.imagesRoot}/${safeTitle}.png`;
       }
       g.localImagePath = localPath;
       appendXmlTag(xmlDoc, gameNode, 'image', localPath);
