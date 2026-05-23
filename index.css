@@ -119,7 +119,6 @@ body {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   height: 100vh;
   max-height: 100vh;
   overflow: hidden;
@@ -217,7 +216,8 @@ body {
 /* Console Category List */
 .console-list-container {
   flex-grow: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   margin-bottom: 15px;
 }
@@ -234,6 +234,10 @@ body {
 }
 .console-list {
   list-style: none;
+  overflow-y: auto;
+  flex-grow: 1;
+  min-height: 0;
+  padding-right: 4px;
 }
 .console-item {
   display: flex;
