@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Retro el konsolları için platform bağımsız, tarayıcı tabanlı ROM yöneticisi ve kapak görseli scraper yazılımı. OnionOS, ArkOS, JelOS uyumlu.">
+  <title>RETRO ROM Manager & Scraper</title>
+  
+  <!-- CSS Styling -->
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <!-- Retro CRT Scanline Effect Overlay -->
+  <div class="scanlines"></div>
+
+  <!-- Global Startup Loading Screen -->
+  <div id="global-loader">
+    <div class="loader-logo">RETRO<span>MGR</span></div>
+    <div class="loader-dots">
+      <div class="loader-dot"></div>
+      <div class="loader-dot"></div>
+      <div class="loader-dot"></div>
+    </div>
+  </div>
+
+  <!-- Main App Layout Grid -->
+  <div class="app-container">
+
+    <!-- 1. LEFT SIDEBAR: WORKSPACE & CATEGORIES -->
+    <aside class="sidebar-left glass-panel" id="sidebar-left">
+      <!-- Brand Title -->
+      <div class="brand">
+        <h1 class="brand-title">RETRO<span>MGR</span></h1>
+        <div class="brand-subtitle">ROM & Scraper Tool</div>
+      </div>
+
+      <!-- SD Card Selector -->
+      <div class="workspace-picker">
+        <button class="picker-btn" id="pick-folder-btn">
+          📂 SD KART SEÇ
+        </button>
+        <div class="workspace-status">
+          <span class="status-indicator" id="workspace-indicator"></span>
+          <span id="workspace-folder-path">Bağlı Değil</span>
+        </div>
+        <!-- Device Profile Badge -->
+        <div id="profile-badge-container" style="display:none; margin-top:12px; font-size:0.75rem; background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:6px; border:1px solid var(--glass-border); display:flex; align-items:center; justify-content:space-between">
+          <span style="font-weight:600; color:hsl(var(--retro-cyan))">Profil: <span id="lbl-profile-name" style="color:#fff">-</span></span>
+          <button id="btn-edit-profile" style="background:none; border:none; cursor:pointer; color:hsl(var(--retro-yellow)); font-size:0.85rem; padding:0" title="Profili Düzenle">⚙️</button>
+        </div>
+      </div>
+
+      <!-- Consoles System Category List -->
+      <div class="console-list-container">
+        <h2 class="console-title">
+          <span>SİSTEMLER</span>
+          <span>ROM</span>
+        </h2>
+        <ul class="console-list" id="console-list">
+          <!-- Dynamically populated via JS -->
+          <li style="text-align:center; padding: 20px; color:var(--text-secondary); font-size:0.8rem">
+            SD Kart yüklenince listelenecektir.
+          </li>
+        </ul>
+      </div>
+
+      <!-- Statistics Panel -->
+      <div class="sidebar-stats">
+        <div class="stat-row">
+          <span>Toplam Oyun:</span>
+          <span class="stat-val" id="stat-total-roms">0</span>
+        </div>
+        <div class="stat-row">
+          <span>Kapaklı:</span>
+          <span class="stat-val" style="color:hsl(var(--retro-green))" id="stat-total-scraped">0</span>
+        </div>
+        <div class="stat-row">
+          <span>Kapak Eksik:</span>
+          <span class="stat-val" style="color:hsl(var(--retro-red))" id="stat-total-missing">0</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 2. MAIN WORKSPACE: GAME LIST GRID/LIST -->
+    <main class="main-workspace" id="main-workspace">
+      
+      <!-- Drag and Drop ROM Loader Overlay -->
+      <div class="dropzone-overlay" id="dropzone-overlay">
+        <span class="dropzone-icon">💾</span>
+        <h3 class="dropzone-title">Dosyaları Bırakın</h3>
+        <p class="dropzone-desc">ROM dosyaları doğrudan bu konsol klasörüne kopyalanacaktır.</p>
+      </div>
+
+      <!-- Controls Panel (Search, Filter, View togglers) -->
+      <section class="workspace-controls">
+        <!-- Search -->
+        <div class="search-box-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="search-input" placeholder="Oyunlarda arayın..." id="input-search">
+        </div>
+
+        <!-- Filters & View Toggles -->
+        <div class="filter-group">
+          <button class="filter-btn" id="filter-missing-btn">
+            🖼️ Kapak Eksik Olanlar
+          </button>
+          
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="btn-grid-view" title="Izgara Görünümü">
+              ⬜
+            </button>
+            <button class="toggle-btn" id="btn-list-view" title="Liste Görünümü">
+              ☰
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Visual Games Grid Area -->
+      <section class="game-grid-container" id="game-grid-container">
+        <!-- Dynamically populated empty state or games list -->
+      </section>
+    </main>
+
+    <!-- 3. RIGHT PANEL: DETAILED INSPECTOR & SCRAPE FORM -->
+    <aside class="sidebar-right glass-panel" id="sidebar-right">
+      <!-- Dynamically populated or empty inspector state -->
+      <div class="inspector-empty">
+        <span class="inspector-empty-icon">🎮</span>
+        <p>Bilgilerini incelemek, kapak görseli indirmek veya metadata düzenlemek için listeden bir oyun seçiniz.</p>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- Modal 1: Folder Scan Progress -->
+  <div class="modal-overlay" id="scan-modal">
+    <div class="modal-container" style="width: 450px;">
+      <div class="modal-header">
+        <h3 class="modal-title">SD Kart Taranıyor</h3>
+      </div>
+      <div class="modal-body">
+        <div class="scanning-loader">
+          <span class="spinning-disc">💿</span>
+          <p id="scan-progress-text" style="font-family:var(--font-tech); font-size:0.85rem">Klasör yapısı ayrıştırılıyor...</p>
+          <div class="scan-progress-bar">
+            <div class="scan-progress-fill" id="scan-progress-fill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Online Scraper Match Selector -->
+  <div class="modal-overlay" id="scrape-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Scraper Sonuçları</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:15px">Aşağıdaki eşleşen oyunlardan en uygun olanını seçin. Kapak görseli ve metadata otomatik olarak SD kartınıza işlenecektir.</p>
+        <div class="scrape-results-list" id="scrape-results-list">
+          <!-- Dynamically populated matching list -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Device Profile Creator & Settings -->
+  <div class="modal-overlay" id="profile-modal">
+    <div class="modal-container" style="width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Cihaz Profili Oluştur</h3>
+        <button class="close-modal-btn" id="btn-close-profile-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:20px">
+          Bu SD kart için uyumlu bir klasör düzeni profili seçin. Tercihleriniz karta <code>.rrmas</code> adında gizli bir JSON ayar dosyası olarak kaydedilecektir.
+        </p>
+        <div class="meta-form">
+          <div class="form-field">
+            <label class="form-label">Cihaz / Profil Adı</label>
+            <input type="text" class="form-input" id="inp-profile-name" placeholder="Örn: Trimui Smart Pro, Miyoo Mini...">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Dizin Düzeni (Preset)</label>
+            <select class="form-input" id="sel-profile-preset" style="background:#161925; color:#fff">
+              <option value="standard">Standart Düzen (OnionOS, ArkOS, JelOS)</option>
+              <option value="crossmix">Trimui Smart Pro (CrossMix Düzeni)</option>
+              <option value="custom">Özel Düzen (Klasörleri El ile Ayarla)</option>
+            </select>
+          </div>
+          
+          <!-- Custom Paths Config Group -->
+          <div id="custom-paths-group" style="display:none; border-top:1px solid rgba(255,255,255,0.05); padding-top:15px; margin-top:15px; flex-direction:column; gap:12px">
+            <div class="form-field">
+              <label class="form-label">ROMs Klasörü (Ana dizine göre)</label>
+              <input type="text" class="form-input" id="inp-custom-roms" placeholder="Örn: Roms veya boş bırakın" value="">
+            </div>
+            <div class="form-field">
+              <label class="form-label">Görsel (Images) Klasör Konumu</label>
+              <select class="form-input" id="sel-custom-images-loc" style="background:#161925; color:#fff">
+                <option value="roms-sub">ROM Klasörünün İçi (media/images/)</option>
+                <option value="root-separate">Kök Dizininde Ayrı Klasör (Örn: Imgs/)</option>
+              </select>
+            </div>
+            <div id="custom-images-folder-field" class="form-field" style="display:none">
+              <label class="form-label">Ayrı Görsel Klasörünün Adı (Kök dizine göre)</label>
+              <input type="text" class="form-input" id="inp-custom-images-dir" placeholder="Örn: Imgs veya Images">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:20px; width:100%">
+            <button class="scrape-btn" id="btn-save-profile" style="flex:1">💾 Profili Kaydet</button>
+            <button class="filter-btn" id="btn-delete-profile" style="background:rgba(255, 56, 96, 0.15); border:1px solid hsl(var(--retro-red)); color:#fff; display:none" title="Profil Ayarlarını Sil">🗑️ Profili Sil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="rom_db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
