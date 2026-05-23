@@ -1219,15 +1219,22 @@ async function tryAutoDetectLocalImage(system, game) {
     if (sysImgsHandle) {
       let fileHandle = null;
       let resolvedExt = "";
+      let resolvedSuffix = "";
 
-      // Try common image extensions
+      // Try common suffixes and extensions
+      const suffixesToTry = ["", "-image", "-thumb", "-boxart", "-marquee", "-titlescreen", "-screenshot"];
       const extensionsToTry = ['png', 'jpg', 'jpeg', 'gif', 'PNG', 'JPG', 'JPEG'];
-      for (const ext of extensionsToTry) {
-        try {
-          fileHandle = await sysImgsHandle.getFileHandle(`${baseName}.${ext}`, { create: false });
-          resolvedExt = ext;
-          break;
-        } catch(e) {}
+
+      for (const suffix of suffixesToTry) {
+        for (const ext of extensionsToTry) {
+          try {
+            fileHandle = await sysImgsHandle.getFileHandle(`${baseName}${suffix}.${ext}`, { create: false });
+            resolvedExt = ext;
+            resolvedSuffix = suffix;
+            break;
+          } catch(e) {}
+        }
+        if (fileHandle) break;
       }
 
       if (fileHandle) {
@@ -1236,9 +1243,9 @@ async function tryAutoDetectLocalImage(system, game) {
         
         // Save the correct relative path style
         if (currentProfile.paths.imagesLoc === 'root-separate') {
-          game.localImagePath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}.${resolvedExt}`;
+          game.localImagePath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}${resolvedSuffix}.${resolvedExt}`;
         } else {
-          game.localImagePath = `./media/images/${baseName}.${resolvedExt}`;
+          game.localImagePath = `./media/images/${baseName}${resolvedSuffix}.${resolvedExt}`;
         }
         game.isScraped = true;
         console.log(`Otomatik eşleşen görsel yüklendi: ${game.localImagePath}`);
@@ -1303,7 +1310,7 @@ async function loadLocalImageBlob(system, game, imagePath) {
       game.image = URL.createObjectURL(file);
     }
   } catch (err) {
-    // Try a final fallback: check if image exists with standard naming in designated folders
+    // Try a final fallback: check if image exists with standard naming and suffixes in designated folders
     try {
       const baseName = game.filename.substring(0, game.filename.lastIndexOf('.'));
       let sysImgsHandle = null;
@@ -1316,20 +1323,31 @@ async function loadLocalImageBlob(system, game, imagePath) {
       }
 
       if (sysImgsHandle) {
-        try {
-          const fileHandle = await sysImgsHandle.getFileHandle(`${baseName}.png`, { create: false });
+        let fileHandle = null;
+        let resolvedExt = "";
+        let resolvedSuffix = "";
+        
+        const suffixesToTry = ["", "-image", "-thumb", "-boxart", "-marquee", "-titlescreen", "-screenshot"];
+        const extensionsToTry = ['png', 'jpg', 'jpeg', 'gif', 'PNG', 'JPG', 'JPEG'];
+
+        for (const suffix of suffixesToTry) {
+          for (const ext of extensionsToTry) {
+            try {
+              fileHandle = await sysImgsHandle.getFileHandle(`${baseName}${suffix}.${ext}`, { create: false });
+              resolvedExt = ext;
+              resolvedSuffix = suffix;
+              break;
+            } catch(e) {}
+          }
+          if (fileHandle) break;
+        }
+
+        if (fileHandle) {
           const file = await fileHandle.getFile();
           game.image = URL.createObjectURL(file);
           game.localImagePath = currentProfile.paths.imagesLoc === 'root-separate' ? 
-            `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}.png` : 
-            `./media/images/${baseName}.png`;
-        } catch(e) {
-          const fileHandle = await sysImgsHandle.getFileHandle(`${baseName}.jpg`, { create: false });
-          const file = await fileHandle.getFile();
-          game.image = URL.createObjectURL(file);
-          game.localImagePath = currentProfile.paths.imagesLoc === 'root-separate' ? 
-            `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}.jpg` : 
-            `./media/images/${baseName}.jpg`;
+            `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}${resolvedSuffix}.${resolvedExt}` : 
+            `./media/images/${baseName}${resolvedSuffix}.${resolvedExt}`;
         }
       }
     } catch(e_fallback) {
@@ -2353,6 +2371,7 @@ function setupDragAndDrop() {
             isScraped: false
           };
 
+          await tryAutoDetectLocalImage(system, newGame);
           system.games.push(newGame);
           addedCount++;
 
