@@ -163,6 +163,334 @@ const CONSOLE_CONFIGS = {
     logo: '💿',
     extensions: ['pce', 'sgx', 'zip'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  psp: {
+    id: 'psp',
+    names: ['psp', 'playstationportable'],
+    displayName: 'PlayStation Portable',
+    logo: '🎮',
+    extensions: ['iso', 'cso', 'pbp'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  pspminis: {
+    id: 'pspminis',
+    names: ['pspminis', 'minis'],
+    displayName: 'PSP Minis',
+    logo: '🕹️',
+    extensions: ['iso', 'cso', 'pbp'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  saturn: {
+    id: 'saturn',
+    names: ['saturn', 'segasaturn'],
+    displayName: 'Sega Saturn',
+    logo: '🪐',
+    extensions: ['cue', 'iso', 'chd'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  dc: {
+    id: 'dc',
+    names: ['dc', 'dreamcast'],
+    displayName: 'Sega Dreamcast',
+    logo: '🌀',
+    extensions: ['gdi', 'cdi', 'chd', 'iso', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  segacd: {
+    id: 'segacd',
+    names: ['segacd', 'megacd'],
+    displayName: 'Sega CD',
+    logo: '📀',
+    extensions: ['cue', 'iso', 'chd'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  sega32x: {
+    id: 'sega32x',
+    names: ['sega32x', '32x'],
+    displayName: 'Sega 32X',
+    logo: '⚡',
+    extensions: ['32x', 'bin', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  atari2600: {
+    id: 'atari2600',
+    names: ['atari2600', 'a2600', 'atari'],
+    displayName: 'Atari 2600',
+    logo: '🕹️',
+    extensions: ['a26', 'bin', 'rom', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  atari5200: {
+    id: 'atari5200',
+    names: ['atari5200', 'a5200'],
+    displayName: 'Atari 5200',
+    logo: '🕹️',
+    extensions: ['a52', 'bin', 'rom', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  atari7800: {
+    id: 'atari7800',
+    names: ['atari7800', 'a7800'],
+    displayName: 'Atari 7800',
+    logo: '🕹️',
+    extensions: ['a78', 'bin', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  atarist: {
+    id: 'atarist',
+    names: ['atarist', 'ast'],
+    displayName: 'Atari ST',
+    logo: '🖥️',
+    extensions: ['st', 'msa', 'dim', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  c64: {
+    id: 'c64',
+    names: ['c64', 'commodore64'],
+    displayName: 'Commodore 64',
+    logo: '⌨️',
+    extensions: ['d64', 't64', 'tap', 'prg', 'crt', 'g64', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  amiga: {
+    id: 'amiga',
+    names: ['amiga', 'amigacd', 'amigacd32', 'amigacdtv'],
+    displayName: 'Commodore Amiga',
+    logo: '💾',
+    extensions: ['adf', 'uae', 'dms', 'ipf', 'cue', 'iso', 'chd', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  coleco: {
+    id: 'coleco',
+    names: ['coleco', 'colecovision'],
+    displayName: 'ColecoVision',
+    logo: '🕹️',
+    extensions: ['col', 'rom', 'bin', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  cpc: {
+    id: 'cpc',
+    names: ['cpc', 'amstradcpc'],
+    displayName: 'Amstrad CPC',
+    logo: '🖥️',
+    extensions: ['dsk', 'cdt', 'tap', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  daphne: {
+    id: 'daphne',
+    names: ['daphne'],
+    displayName: 'Daphne Laserdisc',
+    logo: '🐉',
+    extensions: ['daphne', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  fds: {
+    id: 'fds',
+    names: ['fds'],
+    displayName: 'Famicom Disk System',
+    logo: '💾',
+    extensions: ['fds', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  gw: {
+    id: 'gw',
+    names: ['gw', 'gameandwatch'],
+    displayName: 'Game & Watch',
+    logo: '⌚',
+    extensions: ['mgw', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  intellivision: {
+    id: 'intellivision',
+    names: ['intellivision', 'intv'],
+    displayName: 'Intellivision',
+    logo: '🕹️',
+    extensions: ['int', 'bin', 'rom', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  lynx: {
+    id: 'lynx',
+    names: ['lynx'],
+    displayName: 'Atari Lynx',
+    logo: '📟',
+    extensions: ['lnx', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  msx: {
+    id: 'msx',
+    names: ['msx', 'msx2'],
+    displayName: 'MSX / MSX2',
+    logo: '⌨️',
+    extensions: ['rom', 'mx1', 'mx2', 'dsk', 'cas', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  naomi: {
+    id: 'naomi',
+    names: ['naomi'],
+    displayName: 'Sega NAOMI',
+    logo: '🤖',
+    extensions: ['zip', '7z', 'dat', 'chd'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  neocd: {
+    id: 'neocd',
+    names: ['neocd'],
+    displayName: 'Neo Geo CD',
+    logo: '💿',
+    extensions: ['cue', 'iso', 'chd', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  ngc: {
+    id: 'ngc',
+    names: ['ngc', 'gamecube', 'gc'],
+    displayName: 'Nintendo GameCube',
+    logo: '🟪',
+    extensions: ['iso', 'gcm', 'rvz', 'ciso'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  ngp: {
+    id: 'ngp',
+    names: ['ngp', 'ngpc', 'neogeopocket'],
+    displayName: 'Neo Geo Pocket',
+    logo: '📟',
+    extensions: ['ngp', 'ngc', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  odyssey: {
+    id: 'odyssey',
+    names: ['odyssey', 'odyssey2', 'videopac'],
+    displayName: 'Magnavox Odyssey 2',
+    logo: '🕹️',
+    extensions: ['bin', 'rom', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  '3do': {
+    id: '3do',
+    names: ['3do', 'panasonic3do'],
+    displayName: 'Panasonic 3DO',
+    logo: '📀',
+    extensions: ['iso', 'chd', 'cue'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  pc88: {
+    id: 'pc88',
+    names: ['pc88', 'pc8801'],
+    displayName: 'NEC PC-8801',
+    logo: '🖥️',
+    extensions: ['d88', 'm3u', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  pc98: {
+    id: 'pc98',
+    names: ['pc98', 'pc9801'],
+    displayName: 'NEC PC-9801',
+    logo: '🖥️',
+    extensions: ['hdi', 'd88', 'fdi', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  pcecd: {
+    id: 'pcecd',
+    names: ['pcecd', 'tgcd'],
+    displayName: 'PC Engine CD',
+    logo: '💿',
+    extensions: ['cue', 'chd', 'iso'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  pcfx: {
+    id: 'pcfx',
+    names: ['pcfx'],
+    displayName: 'NEC PC-FX',
+    logo: '📀',
+    extensions: ['cue', 'ccd', 'chd', 'toc'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  pico8: {
+    id: 'pico8',
+    names: ['pico8', 'pico'],
+    displayName: 'PICO-8',
+    logo: '👾',
+    extensions: ['png', 'p8', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  tic80: {
+    id: 'tic80',
+    names: ['tic80', 'tic'],
+    displayName: 'TIC-80',
+    logo: '👾',
+    extensions: ['tic', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  scummvm: {
+    id: 'scummvm',
+    names: ['scummvm'],
+    displayName: 'ScummVM',
+    logo: '🗣️',
+    extensions: ['scummvm', 'ini', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  sg1000: {
+    id: 'sg1000',
+    names: ['sg1000'],
+    displayName: 'Sega SG-1000',
+    logo: '🕹️',
+    extensions: ['sg', 'bin', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  supervision: {
+    id: 'supervision',
+    names: ['supervision'],
+    displayName: 'Watara Supervision',
+    logo: '📟',
+    extensions: ['sv', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  virtualboy: {
+    id: 'virtualboy',
+    names: ['vb', 'virtualboy'],
+    displayName: 'Virtual Boy',
+    logo: '🕶️',
+    extensions: ['vb', 'bin', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  vectrex: {
+    id: 'vectrex',
+    names: ['vectrex'],
+    displayName: 'Vectrex',
+    logo: '📈',
+    extensions: ['vec', 'bin', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  wswan: {
+    id: 'wswan',
+    names: ['ws', 'wsc', 'wswan', 'wswanc', 'wonderswan', 'wonderswancolor'],
+    displayName: 'WonderSwan / Color',
+    logo: '📟',
+    extensions: ['ws', 'wsc', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  x68000: {
+    id: 'x68000',
+    names: ['x68000', 'x68k'],
+    displayName: 'Sharp X68000',
+    logo: '🖥️',
+    extensions: ['dim', 'img', 'd88', 'm3u', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  atomiswave: {
+    id: 'atomiswave',
+    names: ['atomiswave'],
+    displayName: 'Sammy Atomiswave',
+    logo: '👊',
+    extensions: ['zip', '7z', 'chd'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  zxspectrum: {
+    id: 'zxspectrum',
+    names: ['zxspectrum', 'spectrum', 'zxs'],
+    displayName: 'Sinclair ZX Spectrum',
+    logo: '🌈',
+    extensions: ['tzx', 'tap', 'z80', 'szx', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   }
 };
 
