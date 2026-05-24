@@ -1372,3 +1372,15 @@ body.image-fit-cover .match-thumb {
   box-shadow: 0 0 8px hsl(var(--retro-cyan) / 0.5);
   border-color: hsl(var(--retro-cyan));
 }
+
+/* Retro cyberpunk spinner */
+.retro-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(0, 243, 255, 0.1);
+  border-left-color: hsl(var(--retro-cyan));
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+}

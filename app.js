@@ -15,6 +15,141 @@ let activeFilters = {
 };
 let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
 
+// --- IndexedDB for Directory Handle Storage & Games Cache ---
+const DB_NAME = 'RetroRomManagerDB';
+const STORE_NAME = 'handles';
+const KEY_NAME = 'last_sd_card';
+const DB_VERSION = 2;
+const CACHE_STORE_NAME = 'games_cache';
+
+function openIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains(CACHE_STORE_NAME)) {
+        db.createObjectStore(CACHE_STORE_NAME);
+      }
+    };
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function saveGamesCache(systemKey, games) {
+  try {
+    const db = await openIndexedDB();
+    const serializedGames = games.map(game => {
+      return {
+        filename: game.filename,
+        extension: game.extension,
+        title: game.title || "",
+        rating: game.rating || "",
+        releasedate: game.releasedate || "",
+        developer: game.developer || "",
+        publisher: game.publisher || "",
+        genre: game.genre || "",
+        players: game.players || "",
+        description: game.description || "",
+        localImagePath: game.localImagePath || "",
+        video: game.video || "",
+        isScraped: game.isScraped || false,
+        dbRomPath: game.dbRomPath || ""
+      };
+    });
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(CACHE_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(CACHE_STORE_NAME);
+      const request = store.put(serializedGames, systemKey);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error(`[IndexedDB Cache] '${systemKey}' için oyunlar kaydedilemedi:`, err);
+  }
+}
+
+async function loadGamesCache(systemKey) {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(CACHE_STORE_NAME, 'readonly');
+      const store = tx.objectStore(CACHE_STORE_NAME);
+      const request = store.get(systemKey);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error(`[IndexedDB Cache] '${systemKey}' için önbellek okuma hatası:`, err);
+    return null;
+  }
+}
+
+async function clearGamesCache(systemKey) {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(CACHE_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(CACHE_STORE_NAME);
+      const request = store.delete(systemKey);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error(`[IndexedDB Cache] '${systemKey}' için önbellek silme hatası:`, err);
+  }
+}
+
+async function saveSDCardHandle(handle) {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(handle, KEY_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error("IndexedDB yazma hatası:", err);
+  }
+}
+
+async function loadSDCardHandle() {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(KEY_NAME);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error("IndexedDB okuma hatası:", err);
+    return null;
+  }
+}
+
+async function clearSDCardHandle() {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.delete(KEY_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error("IndexedDB silme hatası:", err);
+  }
+}
+
 // --- Custom Device Profile Settings ---
 let currentProfile = {
   cardName: "Standart Cihaz",
@@ -25,18 +160,33 @@ let currentProfile = {
     imagesRoot: "./images",
     imagesLoc: "roms-sub" // 'roms-sub' or 'root-separate'
   },
-  sqliteConfig: null
+  sqliteConfig: null,
+  scraper: {
+    ssid: "",
+    sspassword: "",
+    devid: "retrotool",
+    devpassword: "devpwd"
+  },
+  autoReconnect: true // Default enabled
 };
 
 // --- Console Configuration Mapping ---
 const CONSOLE_CONFIGS = {
   snes: {
     id: 'snes',
-    names: ['snes', 'sfc', 'supernintendo'],
-    displayName: 'Super Nintendo',
+    names: ['snes', 'supernintendo'],
+    displayName: 'Super Nintendo (SNES)',
     logo: '🎮',
     extensions: ['smc', 'sfc', 'zip', 'fig'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60' // Vintage gamepad / cartridge vibe
+  },
+  sfc: {
+    id: 'sfc',
+    names: ['sfc', 'superfamicom'],
+    displayName: 'Super Famicom (SFC)',
+    logo: '🎌',
+    extensions: ['smc', 'sfc', 'zip', 'fig'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   },
   gba: {
     id: 'gba',
@@ -48,9 +198,17 @@ const CONSOLE_CONFIGS = {
   },
   nes: {
     id: 'nes',
-    names: ['nes', 'fc', 'famicom', 'nintendo'],
+    names: ['nes', 'nintendo'],
     displayName: 'Nintendo (NES)',
     logo: '👾',
+    extensions: ['nes', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  fc: {
+    id: 'fc',
+    names: ['fc', 'famicom'],
+    displayName: 'Family Computer (Famicom)',
+    logo: '🎌',
     extensions: ['nes', 'zip'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   },
@@ -72,16 +230,32 @@ const CONSOLE_CONFIGS = {
   },
   megadrive: {
     id: 'megadrive',
-    names: ['megadrive', 'genesis', 'sega', 'smd'],
-    displayName: 'Sega Genesis',
+    names: ['megadrive', 'smd'],
+    displayName: 'Sega Mega Drive',
     logo: '🏎️',
+    extensions: ['bin', 'md', 'smd', 'gen', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  genesis: {
+    id: 'genesis',
+    names: ['genesis', 'sega'],
+    displayName: 'Sega Genesis',
+    logo: '🚀',
     extensions: ['bin', 'md', 'smd', 'gen', 'zip'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   },
   psx: {
     id: 'psx',
-    names: ['psx', 'ps1', 'playstation', 'ps'],
-    displayName: 'PlayStation 1',
+    names: ['psx', 'playstation'],
+    displayName: 'PlayStation (PSX)',
+    logo: '📀',
+    extensions: ['bin', 'img', 'iso', 'cue', 'chd', 'pbp'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  ps1: {
+    id: 'ps1',
+    names: ['ps1', 'ps'],
+    displayName: 'PlayStation (PS1)',
     logo: '📀',
     extensions: ['bin', 'img', 'iso', 'cue', 'chd', 'pbp'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
@@ -320,10 +494,18 @@ const CONSOLE_CONFIGS = {
   },
   msx: {
     id: 'msx',
-    names: ['msx', 'msx2'],
-    displayName: 'MSX / MSX2',
+    names: ['msx'],
+    displayName: 'MSX',
     logo: '⌨️',
-    extensions: ['rom', 'mx1', 'mx2', 'dsk', 'cas', 'zip'],
+    extensions: ['rom', 'mx1', 'dsk', 'cas', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  msx2: {
+    id: 'msx2',
+    names: ['msx2'],
+    displayName: 'MSX2',
+    logo: '💾',
+    extensions: ['rom', 'mx2', 'dsk', 'cas', 'zip'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   },
   naomi: {
@@ -464,10 +646,18 @@ const CONSOLE_CONFIGS = {
   },
   wswan: {
     id: 'wswan',
-    names: ['ws', 'wsc', 'wswan', 'wswanc', 'wonderswan', 'wonderswancolor'],
-    displayName: 'WonderSwan / Color',
+    names: ['ws', 'wswan', 'wonderswan'],
+    displayName: 'WonderSwan',
     logo: '📟',
-    extensions: ['ws', 'wsc', 'zip'],
+    extensions: ['ws', 'zip'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  wsc: {
+    id: 'wsc',
+    names: ['wsc', 'wswanc', 'wonderswancolor'],
+    displayName: 'WonderSwan Color',
+    logo: '🌈',
+    extensions: ['wsc', 'zip'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   },
   x68000: {
@@ -515,7 +705,59 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Initialize UI Bindings
   initUIBindings();
+
+  // Check and prepare quick reconnect
+  checkAndPrepareReconnect();
 });
+
+// --- Check and Prepare Reconnection to Last Connected SD Card ---
+async function checkAndPrepareReconnect() {
+  const isAutoReconnectEnabled = localStorage.getItem('rrm_auto_reconnect') !== 'false';
+  if (!isAutoReconnectEnabled) return;
+
+  try {
+    const savedHandle = await loadSDCardHandle();
+    if (savedHandle) {
+      const reconnectBtn = document.getElementById('btn-reconnect-sd');
+      if (reconnectBtn) {
+        reconnectBtn.style.display = 'block';
+        reconnectBtn.textContent = `🔌 HIZLI BAĞLAN: ${savedHandle.name.toUpperCase()}`;
+        
+        reconnectBtn.addEventListener('click', async () => {
+          reconnectBtn.disabled = true;
+          reconnectBtn.textContent = `🔌 Bağlanıyor...`;
+          
+          try {
+            const permission = await savedHandle.requestPermission({ mode: 'readwrite' });
+            if (permission === 'granted') {
+              sdCardHandle = savedHandle;
+              
+              // Update Status Indicator
+              const indicator = document.getElementById('workspace-indicator');
+              const folderPathEl = document.getElementById('workspace-folder-path');
+              if (indicator && folderPathEl) {
+                indicator.className = 'status-indicator connected';
+                folderPathEl.textContent = sdCardHandle.name;
+              }
+              
+              await initWorkspaceFromHandle();
+              reconnectBtn.style.display = 'none';
+            } else {
+              reconnectBtn.disabled = false;
+              reconnectBtn.textContent = `🔌 TEKRAR DENE: ${savedHandle.name.toUpperCase()}`;
+            }
+          } catch (err) {
+            console.error("Yeniden bağlanma izni alınamadı:", err);
+            await clearSDCardHandle();
+            reconnectBtn.style.display = 'none';
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Yeniden bağlanma hazırlığı hatası:", err);
+  }
+}
 
 // --- UI Bindings ---
 function initUIBindings() {
@@ -720,12 +962,17 @@ function initUIBindings() {
           document.getElementById('inp-scraper-sspassword').value = currentProfile.scraper.sspassword || "";
           document.getElementById('inp-scraper-devid').value = currentProfile.scraper.devid || "retrotool";
           document.getElementById('inp-scraper-devpassword').value = currentProfile.scraper.devpassword || "devpwd";
+          document.getElementById('inp-scraper-media').value = currentProfile.scraper.mediaPref || "mixrbv1";
         } else {
           document.getElementById('inp-scraper-ssid').value = "";
           document.getElementById('inp-scraper-sspassword').value = "";
           document.getElementById('inp-scraper-devid').value = "retrotool";
           document.getElementById('inp-scraper-devpassword').value = "devpwd";
+          document.getElementById('inp-scraper-media').value = "mixrbv1";
         }
+
+        // Populate Auto Reconnect Preference
+        document.getElementById('chk-auto-reconnect').checked = currentProfile.autoReconnect !== false;
 
         // Show delete button since profile exists
         if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
@@ -867,6 +1114,16 @@ async function selectSDCardWorkspace() {
       folderPathEl.textContent = sdCardHandle.name;
     }
 
+    // Save to IndexedDB if auto-reconnect is allowed
+    const isAutoReconnectEnabled = localStorage.getItem('rrm_auto_reconnect') !== 'false';
+    if (isAutoReconnectEnabled) {
+      await saveSDCardHandle(sdCardHandle);
+    }
+
+    // Hide reconnect button if visible
+    const reconnectBtn = document.getElementById('btn-reconnect-sd');
+    if (reconnectBtn) reconnectBtn.style.display = 'none';
+
     // Initialize workspace logic from the handle
     await initWorkspaceFromHandle();
 
@@ -990,6 +1247,16 @@ async function saveDeviceProfileAndStart() {
 
   currentProfile.cardName = nameVal;
   currentProfile.preset = presetVal;
+
+  // Save Reconnect setting
+  const autoReconnectVal = document.getElementById('chk-auto-reconnect').checked;
+  currentProfile.autoReconnect = autoReconnectVal;
+  localStorage.setItem('rrm_auto_reconnect', autoReconnectVal ? 'true' : 'false');
+  if (!autoReconnectVal) {
+    await clearSDCardHandle();
+  } else if (sdCardHandle) {
+    await saveSDCardHandle(sdCardHandle);
+  }
   
   const customRomsRoot = document.getElementById('inp-adv-roms-root').value.trim();
   const customImagesRoot = document.getElementById('inp-adv-images-root').value.trim() || "./images";
@@ -1037,7 +1304,8 @@ async function saveDeviceProfileAndStart() {
     ssid: document.getElementById('inp-scraper-ssid').value.trim(),
     sspassword: document.getElementById('inp-scraper-sspassword').value.trim(),
     devid: document.getElementById('inp-scraper-devid').value.trim(),
-    devpassword: document.getElementById('inp-scraper-devpassword').value.trim()
+    devpassword: document.getElementById('inp-scraper-devpassword').value.trim(),
+    mediaPref: document.getElementById('inp-scraper-media').value
   };
 
   // Save .rrmas file in SD Card root folder
@@ -1089,7 +1357,7 @@ function updateProfileBadgeUI() {
   }
 }
 
-// --- Recursively Scan SD Card Folders ---
+// --- Recursively Scan SD Card Folders (Lazy Scanning) ---
 async function scanSDCardDirectories() {
   consoleData = {};
   
@@ -1100,7 +1368,9 @@ async function scanSDCardDirectories() {
       games: [],
       dirHandle: null,
       xmlFileHandle: null,
-      gamelistXML: null
+      gamelistXML: null,
+      sqliteDB: null,
+      isFullyLoaded: false
     };
   }
 
@@ -1155,21 +1425,31 @@ async function scanSDCardDirectories() {
 
     if (matchedConsoleKey) {
       const system = consoleData[matchedConsoleKey];
+      
+      // Çakışma Önleme: Eğer bu konsol için zaten bir klasör taranmışsa, ikinciyi atla!
+      if (system.dirHandle !== null) {
+        console.warn(`[Çakışma Önleme] "${matchedConsoleKey}" sistemi için zaten "/${system.dirHandle.name}" klasörü taranmıştı. İkinci eşleşen "/${dirEntry.name}" klasörü atlanıyor.`);
+        continue;
+      }
+
       system.dirHandle = dirEntry;
+      system.isFullyLoaded = false;
 
-      // Scan ROM files in this directory
-      await scanROMFilesInDirectory(system);
-
-      // Check / Load metadata depending on storage type
-      if (currentProfile.metadataStorage === 'sqlite') {
-        await tryLoadOrCreateSqliteDB(system);
-      } else {
-        await loadOrCreateGamelistXML(system);
+      // Load games list from IndexedDB cache to populate badges instantly
+      try {
+        const cachedGames = await loadGamesCache(matchedConsoleKey);
+        if (cachedGames && Array.isArray(cachedGames)) {
+          system.games = cachedGames;
+          console.log(`[IndexedDB Cache] '${matchedConsoleKey}' için ${cachedGames.length} oyun önbellekten yüklendi.`);
+        }
+      } catch (cacheErr) {
+        console.warn(`[IndexedDB Cache] '${matchedConsoleKey}' önbelleği okunurken hata:`, cacheErr);
       }
     }
   }
 
   // Remove empty consoles from consoleData so we only display what actually exists
+  // But wait, if they have no cache yet, their games list is empty. If they have a folder, we want to keep them!
   for (const key in consoleData) {
     if (!consoleData[key].dirHandle) {
       delete consoleData[key];
@@ -1275,25 +1555,13 @@ async function loadOrCreateGamelistXML(system) {
 
         // Try to load the local image blob if image path is valid
         if (localImgPath) {
-          await loadLocalImageBlob(system, matchedGame, localImgPath);
+          // Bypassed during initial scan for instant performance (lazy loaded in UI)
         }
-      }
-    }
-
-    // Auto-detect covers for games that still don't have images loaded
-    for (const game of system.games) {
-      if (!game.image) {
-        await tryAutoDetectLocalImage(system, game);
       }
     }
   } catch (err) {
     console.error("XML ayrıştırma hatası:", err);
     system.gamelistXML = new DOMParser().parseFromString('<?xml version="1.0"?><gameList></gameList>', 'text/xml');
-    
-    // Auto-detect fallback
-    for (const game of system.games) {
-      await tryAutoDetectLocalImage(system, game);
-    }
   }
 }
 
@@ -1548,8 +1816,8 @@ function renderSidebarConsoles() {
     const coveredCount = sys.games.filter(g => g.image !== "").length;
     totalCovered += coveredCount;
 
-    // Hide systems with 0 roms by default, show when showEmptySystems is true
-    if (gameCount === 0 && !showEmptySystems) {
+    // Hide systems with 0 roms by default if they are fully loaded, show when showEmptySystems is true
+    if (sys.isFullyLoaded && gameCount === 0 && !showEmptySystems) {
       continue;
     }
 
@@ -1581,8 +1849,118 @@ function renderSidebarConsoles() {
   if (statMissing) statMissing.textContent = totalRoms - totalCovered;
 }
 
+// --- Render Games Loading State (Spinner) ---
+function renderGamesLoadingState(consoleName) {
+  const container = document.getElementById('game-grid-container');
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div class="empty-state" style="padding: 60px 20px;">
+      <div class="retro-spinner"></div>
+      <h3 class="empty-title" style="color:hsl(var(--retro-cyan)); text-shadow:0 0 10px rgba(0,243,255,0.4)">${consoleName} Oyunları Yükleniyor</h3>
+      <p class="empty-desc">SD karttaki ROM dosyaları taranıyor ve meta veriler eşitleniyor...</p>
+    </div>
+  `;
+}
+
+// --- Lazy Load & Reconcile Sync for Console games ---
+async function lazyLoadAndSyncConsole(system) {
+  if (system.isFullyLoaded) return;
+
+  const extensions = system.config.extensions;
+  const dirHandle = system.dirHandle;
+  
+  let consoleKey = null;
+  for (const k in consoleData) {
+    if (consoleData[k] === system) {
+      consoleKey = k;
+      break;
+    }
+  }
+  if (!consoleKey) return;
+
+  console.log(`[Lazy Load] '${consoleKey}' klasörü taranıyor...`);
+
+  // 1. Scan active files in the directory handle (fast list)
+  const activeFiles = [];
+  try {
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'file') {
+        if (entry.name.startsWith('.')) continue; // Skip hidden macOS system files
+        const ext = entry.name.split('.').pop().toLowerCase();
+        if (extensions.includes(ext)) {
+          activeFiles.push(entry);
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[Lazy Load] '${consoleKey}' dizin okuma hatası:`, err);
+  }
+
+  // 2. Build a map of games we got from cache to retain their metadata
+  const cachedMap = new Map();
+  if (system.games && Array.isArray(system.games)) {
+    for (const game of system.games) {
+      cachedMap.set(game.filename.toLowerCase(), game);
+    }
+  }
+
+  // 3. Reconcile scanned files against cache
+  const syncedGames = [];
+  
+  for (const fileEntry of activeFiles) {
+    const fileLower = fileEntry.name.toLowerCase();
+    if (cachedMap.has(fileLower)) {
+      const cachedGame = cachedMap.get(fileLower);
+      cachedGame.fileHandle = fileEntry; // Restore active FileSystemFileHandle
+      syncedGames.push(cachedGame);
+    } else {
+      // New ROM found!
+      const ext = fileEntry.name.split('.').pop().toLowerCase();
+      syncedGames.push({
+        filename: fileEntry.name,
+        extension: ext,
+        fileHandle: fileEntry,
+        title: formatFilenameToTitle(fileEntry.name),
+        rating: "",
+        releasedate: "",
+        developer: "",
+        publisher: "",
+        genre: "",
+        players: "",
+        description: "",
+        image: "",
+        localImagePath: "",
+        video: "",
+        isScraped: false,
+        scrapedImageBlob: null
+      });
+    }
+  }
+
+  system.games = syncedGames;
+
+  // 4. Load XML or SQLite database to overlay metadata from SD card
+  try {
+    if (currentProfile.metadataStorage === 'sqlite') {
+      await tryLoadOrCreateSqliteDB(system);
+    } else {
+      await loadOrCreateGamelistXML(system);
+    }
+  } catch (dbErr) {
+    console.error(`[Lazy Load] '${consoleKey}' metadata okuma hatası:`, dbErr);
+  }
+
+  // 5. Save synced data back to IndexedDB cache
+  await saveGamesCache(consoleKey, system.games);
+
+  // 6. Mark as fully loaded
+  system.isFullyLoaded = true;
+  console.log(`[Lazy Load] '${consoleKey}' başarıyla yüklendi. Oyun sayısı: ${system.games.length}`);
+}
+
 // --- Activate Console Category ---
-function activateConsoleCategory(key) {
+async function activateConsoleCategory(key) {
   activeConsole = key;
 
   // Clear bulk selections
@@ -1597,6 +1975,14 @@ function activateConsoleCategory(key) {
 
   // Clear Inspector
   clearInspector();
+
+  // Lazy scan and sync if not fully loaded yet
+  const system = consoleData[key];
+  if (system && !system.isFullyLoaded) {
+    renderGamesLoadingState(system.config.displayName);
+    await lazyLoadAndSyncConsole(system);
+    renderSidebarConsoles(); // Update counts and badges after loading completed
+  }
 
   // Render Games
   renderActiveGames();
@@ -1690,10 +2076,71 @@ function renderActiveGames() {
   }
 }
 
+// --- Lazy Loading Image Observer ---
+const boxartObserver = new IntersectionObserver((entries, observer) => {
+  entries.forEach(async entry => {
+    if (entry.isIntersecting) {
+      const img = entry.target;
+      const game = img.gameData;
+      const system = img.systemData;
+      observer.unobserve(img); // Stop observing once visible
+      
+      try {
+        await lazyLoadGameImage(game, img, system);
+      } catch (err) {
+        console.error("Lazy load hatası:", err);
+      }
+    }
+  });
+}, { rootMargin: '120px' }); // Load 120px before coming into view
+
+async function lazyLoadGameImage(game, imgElement, system) {
+  // If already loaded, show it
+  if (game.image && game.image.startsWith('blob:')) {
+    imgElement.src = game.image;
+    imgElement.style.opacity = '1';
+    return;
+  }
+  
+  // If has local path, load it
+  if (game.localImagePath) {
+    try {
+      await loadLocalImageBlob(system, game, game.localImagePath);
+    } catch (e) {
+      console.warn("Lazy image load failed, trying auto-detect:", e);
+    }
+  }
+  
+  // If still not loaded, try auto-detect
+  if (!game.image) {
+    try {
+      await tryAutoDetectLocalImage(system, game);
+    } catch (e) {
+      console.warn("Auto-detect failed:", e);
+    }
+  }
+  
+  // If loaded successfully, display
+  if (game.image) {
+    imgElement.src = game.image;
+    imgElement.style.opacity = '1';
+  } else {
+    // Replace with nostalgic cartridge placeholder
+    const wrapper = imgElement.parentElement;
+    if (wrapper) {
+      wrapper.innerHTML = `<div class="cartridge-placeholder">
+        <span class="cartridge-label">${game.title}</span>
+      </div>`;
+    }
+  }
+}
+
 // --- Render Grid Thumbnail Layout ---
 function renderGridView(container, games) {
   const grid = document.createElement('div');
   grid.className = 'rom-grid';
+
+  const system = consoleData[activeConsole];
 
   games.forEach(game => {
     const card = document.createElement('div');
@@ -1703,7 +2150,8 @@ function renderGridView(container, games) {
     const isChecked = selectedRomsBulk.includes(game);
     
     // Scraped Badge
-    const scrapedDotClass = game.image !== "" ? 'completed' : '';
+    const hasImage = game.image !== "" || game.localImagePath !== "";
+    const scrapedDotClass = hasImage ? 'completed' : '';
     const badgeText = game.filename.split('.').pop();
 
     card.innerHTML = `
@@ -1713,19 +2161,14 @@ function renderGridView(container, games) {
       </div>
       <span class="card-badge" style="right:8px; top:8px">${badgeText}</span>
       <span class="scraped-dot ${scrapedDotClass}"></span>
-      <div class="boxart-wrapper">
-        ${game.image ? 
-          `<img src="${game.image}" class="boxart-img" alt="${game.title}" loading="lazy">` : 
-          `<div class="cartridge-placeholder">
-             <span class="cartridge-label">${game.title}</span>
-           </div>`
-        }
+      <div class="boxart-wrapper" style="display:flex; align-items:center; justify-content:center; width:100%; height:100%; position:relative">
+        <img class="boxart-img lazy-boxart" alt="${game.title}" style="opacity:0; transition:opacity 0.25s ease; width:100%; height:100%; object-fit:inherit">
       </div>
       <div class="rom-info">
         <h4 class="rom-title" title="${game.title}">${game.title}</h4>
         <div class="rom-system-ext">
           <span>${activeConsole.toUpperCase()}</span>
-          <span>${(game.rating ? Math.round(parseFloat(game.rating) * 100) + '%' : '')}</span>
+          <span>${(game.rating && !isNaN(parseFloat(game.rating)) && parseFloat(game.rating) > 0 ? Math.round(parseFloat(game.rating) * 100) + '%' : '')}</span>
         </div>
       </div>
     `;
@@ -1750,6 +2193,13 @@ function renderGridView(container, games) {
       selectRomForInspection(game, card);
     });
 
+    const imgEl = card.querySelector('.lazy-boxart');
+    if (imgEl) {
+      imgEl.gameData = game;
+      imgEl.systemData = system;
+      boxartObserver.observe(imgEl);
+    }
+
     grid.appendChild(card);
   });
 
@@ -1762,13 +2212,15 @@ function renderListView(container, games) {
   const list = document.createElement('div');
   list.className = 'rom-list-layout';
 
+  const system = consoleData[activeConsole];
+
   games.forEach(game => {
     const row = document.createElement('div');
     row.className = `rom-row-item ${selectedRom === game ? 'active' : ''}`;
 
     // Check if this game is currently selected in bulk
     const isChecked = selectedRomsBulk.includes(game);
-    const isScraped = game.image !== "";
+    const isScraped = game.image !== "" || game.localImagePath !== "";
 
     row.innerHTML = `
       <!-- Bulk Checkbox -->
@@ -1776,11 +2228,8 @@ function renderListView(container, games) {
         <input type="checkbox" class="bulk-chk" ${isChecked ? 'checked' : ''}>
       </div>
       <div class="row-left">
-        <div class="row-icon-wrapper">
-          ${game.image ? 
-            `<img src="${game.image}" class="row-thumb" alt="${game.title}">` : 
-            `<span style="font-size:0.9rem">📼</span>`
-          }
+        <div class="row-icon-wrapper" style="display:flex; align-items:center; justify-content:center">
+          <img class="row-thumb lazy-row-thumb" alt="${game.title}" style="opacity:0; transition:opacity 0.2s ease; width:100%; height:100%; object-fit:cover">
         </div>
         <span class="row-name" title="${game.filename}">${game.title}</span>
       </div>
@@ -1812,6 +2261,13 @@ function renderListView(container, games) {
       selectRomForInspection(game, row);
     });
 
+    const imgEl = row.querySelector('.lazy-row-thumb');
+    if (imgEl) {
+      imgEl.gameData = game;
+      imgEl.systemData = system;
+      boxartObserver.observe(imgEl);
+    }
+
     list.appendChild(row);
   });
 
@@ -1828,6 +2284,13 @@ async function selectRomForInspection(game, element) {
     el.classList.remove('active');
   });
   element.classList.add('active');
+
+  if (selectedRomsBulk.length > 1) {
+    // In bulk selection mode, do not load individual inspector details, keep showing bulk mode
+    selectedRom = null;
+    updateBulkActionBarUI();
+    return;
+  }
 
   const system = consoleData[activeConsole];
   // Lazy-load all available images for this game
@@ -2137,6 +2600,19 @@ async function writeGamelistXMLFile(system) {
     const writable = await fileHandle.createWritable();
     await writable.write(xmlString);
     await writable.close();
+
+    // Update local IndexedDB cache
+    let consoleKey = null;
+    for (const k in consoleData) {
+      if (consoleData[k] === system) {
+        consoleKey = k;
+        break;
+      }
+    }
+    if (consoleKey) {
+      await saveGamesCache(consoleKey, system.games);
+      console.log(`[IndexedDB Cache] '${consoleKey}' için önbellek güncellendi (XML kaydı sonrası).`);
+    }
   } catch (err) {
     console.error("XML yazma hatası:", err);
     alert("gamelist.xml dosyası kaydedilemedi! Lütfen yazma izinlerinizi kontrol edin.");
@@ -2227,6 +2703,8 @@ const SCREENSCRAPER_SYSTEM_IDS = {
   'amiga': 64,
   'msx': 113,
   'msx2': 113,
+  'wswan': 45,
+  'wsc': 46,
   'pico8': 234,
   'scummvm': 123,
   'zxspectrum': 76
@@ -2241,10 +2719,20 @@ function getScreenScraperSystemId(activeConsole) {
 // Güvenilir ve kendi kendini onaran (self-healing) CORS proxy zinciri
 async function fetchWithCorsProxy(targetUrl) {
   const proxies = [
+    // 1. Yerel PHP Proksisi (Relative - Aynı sunucuda ise)
+    url => `proxy.php?url=` + encodeURIComponent(url),
+    
+    // 2. Yerel PHP Proksisi (Laravel Herd sanal sunucusu HTTP - SSL sertifika hatası almamak için)
+    url => `http://retro-rom-manager.test/proxy.php?url=` + encodeURIComponent(url),
+    
+    // 3. Yerel PHP Proksisi (Laravel Herd sanal sunucusu HTTPS)
+    url => `https://retro-rom-manager.test/proxy.php?url=` + encodeURIComponent(url),
+    
+    // 4. Kamu CORS Proksileri (Eğer yerel PHP sunucusu çalışmıyorsa yedekler)
+    url => `https://api.codetabs.com/v1/proxy?quest=` + encodeURIComponent(url),
     url => `https://api.allorigins.win/raw?url=` + encodeURIComponent(url),
     url => `https://corsproxy.io/?` + encodeURIComponent(url),
-    url => `https://thingproxy.freeboard.io/fetch/` + url,
-    url => `https://api.codetabs.com/v1/proxy?quest=` + encodeURIComponent(url)
+    url => `https://thingproxy.freeboard.io/fetch/` + url
   ];
   let lastError = null;
   for (const proxyFn of proxies) {
@@ -2253,12 +2741,41 @@ async function fetchWithCorsProxy(targetUrl) {
       console.log(`CORS Proxy deneniyor: ${proxiedUrl}`);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 saniye zaman aşımı
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 saniye zaman aşımı
       
       const response = await fetch(proxiedUrl, { signal: controller.signal });
       clearTimeout(timeoutId);
       
       if (response.ok) {
+        // Gelen yanıtın statik olarak sunulmuş ham PHP kodu olup olmadığını kontrol et.
+        // Eğer sunucu PHP dosyalarını çalıştırmak yerine düz metin olarak sunuyorsa (npx http-server gibi)
+        // yanıt '<?php' ile başlar. Bu durumda bu proxy'yi geçersiz sayıp sonrakine geçmeliyiz.
+        try {
+          const clone = response.clone();
+          const text = await clone.text();
+          if (text.trim().startsWith('<?php')) {
+            console.warn("Proxy PHP olarak çalıştırılamadı (statik sunucu ham PHP dosyasını döndürdü), sonraki proxy deneniyor.");
+            continue;
+          }
+        } catch (e) {
+          console.warn("Proxy ham veri okuma hatası:", e);
+        }
+
+        // Hata Ayıklama & Güvenlik Filtresi: Eğer JSON sorgusu atıyorsak, gelen verinin gerçekten JSON olup olmadığını doğrula.
+        // Bazı proxy sunucuları Cloudflare engeline takılınca 200 OK durum koduyla HTML hata sayfası dönerler.
+        if (targetUrl.includes('output=json')) {
+          try {
+            const clone = response.clone();
+            const text = await clone.text();
+            if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) {
+              console.warn("Proxy başarılı kod dönderdi ancak yanıt gerçek bir JSON değil (Cloudflare/HTML engeli), sonraki proxy deneniyor.");
+              continue;
+            }
+          } catch (e) {
+            console.warn("Proxy yanıt doğrulaması başarısız oldu, sonraki proxy deneniyor:", e);
+            continue;
+          }
+        }
         return response;
       }
       console.warn(`Proxy başarısız oldu (Status: ${response.status})`);
@@ -2268,6 +2785,145 @@ async function fetchWithCorsProxy(targetUrl) {
     }
   }
   throw lastError || new Error("Tüm CORS Proxy sunucuları başarısız oldu.");
+}
+
+// --- Offline & Online Scraper Engine ---
+// --- Clean ROM filename to make a human-readable title search ---
+function cleanTitleForSearch(filename) {
+  // Remove extension
+  let name = filename.substring(0, filename.lastIndexOf('.')) || filename;
+  // Remove everything inside parentheses () and brackets []
+  name = name.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '');
+  // Replace multiple spaces with a single space and trim
+  return name.replace(/\s+/g, ' ').trim();
+}
+
+// --- Standard ScreenScraper Jeu Parser to form a Match Object ---
+function parseScreenScraperJeu(jeu) {
+  // A. Oyun Başlığı Çöz (Türkçe -> İngilizce -> Bölgesel -> Varsayılan)
+  let title = selectedRom.title;
+  if (jeu.noms && jeu.noms.length > 0) {
+    const trName = jeu.noms.find(n => n && n.region && typeof n.region === 'string' && n.region.toLowerCase() === 'tr');
+    const usName = jeu.noms.find(n => n && n.region && typeof n.region === 'string' && n.region.toLowerCase() === 'us');
+    const euName = jeu.noms.find(n => n && n.region && typeof n.region === 'string' && n.region.toLowerCase() === 'eu');
+    const ssName = jeu.noms.find(n => n && n.region && typeof n.region === 'string' && n.region.toLowerCase() === 'ss');
+    const matchedNameObj = trName || usName || euName || ssName || jeu.noms[0];
+    if (matchedNameObj && matchedNameObj.text) {
+      title = matchedNameObj.text;
+    }
+  }
+
+  // B. Açıklama Çöz (Türkçe -> İngilizce -> Varsayılan)
+  let desc = "";
+  if (jeu.synopsis && jeu.synopsis.length > 0) {
+    const trDesc = jeu.synopsis.find(s => s && s.langue && typeof s.langue === 'string' && s.langue.toLowerCase() === 'tr');
+    const enDesc = jeu.synopsis.find(s => s && s.langue && typeof s.langue === 'string' && s.langue.toLowerCase() === 'en');
+    const matchedDesc = trDesc || enDesc || jeu.synopsis[0];
+    if (matchedDesc && matchedDesc.text) {
+      desc = matchedDesc.text;
+    }
+  }
+
+  // C. Tür Çöz (Türkçe -> İngilizce -> Varsayılan)
+  let genre = "Action / Retro";
+  if (jeu.genres && jeu.genres.length > 0 && jeu.genres[0] && jeu.genres[0].noms) {
+    const trGenre = jeu.genres[0].noms.find(n => n && n.langue && typeof n.langue === 'string' && n.langue.toLowerCase() === 'tr');
+    const enGenre = jeu.genres[0].noms.find(n => n && n.langue && typeof n.langue === 'string' && n.langue.toLowerCase() === 'en');
+    const matchedGenreObj = trGenre || enGenre || jeu.genres[0].noms[0];
+    if (matchedGenreObj && matchedGenreObj.text) {
+      genre = matchedGenreObj.text;
+    }
+  }
+
+  // D. Yapımcı ve Yayıncı Çöz
+  const developer = (jeu.developpeur && jeu.developpeur.text) ? jeu.developpeur.text : "Retro Dev";
+  const publisher = (jeu.editeur && jeu.editeur.text) ? jeu.editeur.text : "Retro Classics";
+
+  // E. Yayın Tarihi Çöz
+  let releaseDate = "";
+  if (jeu.dates && jeu.dates.length > 0) {
+    const euDate = jeu.dates.find(d => d && d.region && typeof d.region === 'string' && d.region.toLowerCase() === 'eu');
+    const usDate = jeu.dates.find(d => d && d.region && typeof d.region === 'string' && d.region.toLowerCase() === 'us');
+    const matchedDateObj = euDate || usDate || jeu.dates[0];
+    const rawDate = matchedDateObj ? matchedDateObj.text : "";
+    if (rawDate && rawDate.length >= 4) {
+      releaseDate = rawDate.includes('-') ? rawDate : `${rawDate}-01-01`;
+    }
+  }
+
+  // F. Oyuncu Sayısı ve Puan Çöz
+  let players = "1";
+  if (jeu.joueurs) {
+    if (typeof jeu.joueurs === 'object') {
+      players = jeu.joueurs.text || jeu.joueurs.valeur || jeu.joueurs['#text'] || jeu.joueurs['@nb'] || "1";
+    } else {
+      players = jeu.joueurs.toString();
+    }
+  }
+
+  let rating = "0.80";
+  if (jeu.note && jeu.note.valeur) {
+    rating = (parseFloat(jeu.note.valeur) / 20).toFixed(2); // 20 üzerinden puanı 0.0 - 1.0 aralığına normalize et
+  } else if (jeu.note && jeu.note.text) {
+    rating = (parseFloat(jeu.note.text) / 20).toFixed(2);
+  }
+
+  // G. Medya URL'leri Çöz (Kullanıcı Tercihli Kapak Görseli ve Video)
+  let boxartUrl = "";
+  let boxartFormat = "png";
+  let videoUrl = "";
+  let videoFormat = "mp4";
+  
+  if (jeu.medias && jeu.medias.length > 0) {
+    const mediaPref = (currentProfile.scraper && currentProfile.scraper.mediaPref) || "mixrbv1";
+    
+    const preferredMedia = jeu.medias.find(m => m && m.type && typeof m.type === 'string' && m.type.toLowerCase() === mediaPref.toLowerCase());
+    
+    if (preferredMedia && preferredMedia.url) {
+      boxartUrl = preferredMedia.url;
+      boxartFormat = preferredMedia.format || "png";
+    } else {
+      const fallbackTypes = ['mixrbv1', 'mixrbv2', 'box-3d', 'box-2d', 'screenshot', 'logo'];
+      for (const type of fallbackTypes) {
+        const matched = jeu.medias.find(m => m && m.type && typeof m.type === 'string' && m.type.toLowerCase() === type);
+        if (matched && matched.url) {
+          boxartUrl = matched.url;
+          boxartFormat = matched.format || "png";
+          break;
+        }
+      }
+      if (!boxartUrl) {
+        const anyMedia = jeu.medias.find(m => m && m.type && typeof m.type === 'string' && m.type.toLowerCase() !== 'video' && m.url);
+        if (anyMedia) {
+          boxartUrl = anyMedia.url;
+          boxartFormat = anyMedia.format || "png";
+        }
+      }
+    }
+
+    const vid = jeu.medias.find(m => m && m.type && typeof m.type === 'string' && m.type.toLowerCase() === 'video');
+    if (vid && vid.url) {
+      videoUrl = vid.url;
+      videoFormat = vid.format || "mp4";
+    }
+  }
+
+  return {
+    id: `ss-${jeu.id || 'game'}`,
+    title: title,
+    system: activeConsole,
+    developer: developer,
+    publisher: publisher,
+    releasedate: releaseDate,
+    genre: genre,
+    players: players,
+    rating: rating,
+    description: desc,
+    image: boxartUrl || consoleData[activeConsole].config.defaultCart,
+    imageFormat: boxartFormat,
+    video: videoUrl,
+    videoFormat: videoFormat
+  };
 }
 
 // --- Offline & Online Scraper Engine ---
@@ -2286,7 +2942,22 @@ async function triggerOnlineScrape() {
 
     if (typeof RETRO_GAME_DB !== 'undefined') {
       dbMatch = RETRO_GAME_DB.find(game => {
-        if (game.system !== activeConsole) return false;
+        const dbSystem = game.system;
+        const targetSystem = activeConsole;
+        const systemMatch = (dbSystem === targetSystem) || 
+                            (dbSystem === 'megadrive' && targetSystem === 'genesis') ||
+                            (dbSystem === 'genesis' && targetSystem === 'megadrive') ||
+                            (dbSystem === 'snes' && targetSystem === 'sfc') ||
+                            (dbSystem === 'sfc' && targetSystem === 'snes') ||
+                            (dbSystem === 'nes' && targetSystem === 'fc') ||
+                            (dbSystem === 'fc' && targetSystem === 'nes') ||
+                            (dbSystem === 'msx' && targetSystem === 'msx2') ||
+                            (dbSystem === 'msx2' && targetSystem === 'msx') ||
+                            (dbSystem === 'wswan' && targetSystem === 'wsc') ||
+                            (dbSystem === 'wsc' && targetSystem === 'wswan') ||
+                            (dbSystem === 'psx' && targetSystem === 'ps1') ||
+                            (dbSystem === 'ps1' && targetSystem === 'psx');
+        if (!systemMatch) return false;
         return game.filenameKeywords.some(kw => filenameLower.includes(kw)) ||
                filenameLower.includes(game.title.toLowerCase());
       });
@@ -2317,24 +2988,47 @@ async function triggerOnlineScrape() {
     const devpassword = scraper.devpassword || "devpwd";
     const systemId = getScreenScraperSystemId(activeConsole);
 
-    // API İstek URL'i oluştur
+    // Adım A: Önce dosya adıyla tam eşleşme ara (jeuInfos.php)
     const targetUrl = `https://www.screenscraper.fr/api2/jeuInfos.php?devid=${devid}&devpassword=${devpassword}&softname=retromgr&ssid=${ssid}&sspassword=${sspassword}&output=json&systemeid=${systemId}&romnom=${encodeURIComponent(selectedRom.filename)}`;
 
     btn.innerHTML = `🔍 Sunucu Aranıyor...`;
-    const response = await fetchWithCorsProxy(targetUrl);
+    let response = null;
+    let fallbackUsed = false;
     
-    if (response.ok) {
+    try {
+      response = await fetchWithCorsProxy(targetUrl);
+    } catch (fetchErr) {
+      console.warn("Exact romnom query failed/choked on proxy, will trigger search fallback...", fetchErr);
+    }
+
+    // Adım B: Eğer tam dosya adı bulunamadıysa (veya proxy hatası alındıysa), metin araması yap (jeuRecherche.php)
+    if (!response || !response.ok) {
+      const cleanQuery = cleanTitleForSearch(selectedRom.filename);
+      console.log(`[Scraper Fallback] "${selectedRom.filename}" tam eşleşmedi. Metinle aranıyor: "${cleanQuery}"`);
+      const searchUrl = `https://www.screenscraper.fr/api2/jeuRecherche.php?devid=${devid}&devpassword=${devpassword}&softname=retromgr&ssid=${ssid}&sspassword=${sspassword}&output=json&recherche=${encodeURIComponent(cleanQuery)}`;
+      
+      btn.innerHTML = `🔍 Arama Yapılıyor...`;
+      try {
+        response = await fetchWithCorsProxy(searchUrl);
+        fallbackUsed = true;
+      } catch (fallbackErr) {
+        console.error("Text search fallback also failed:", fallbackErr);
+        throw new Error("ROM dosyası veya temizlenmiş ismi ScreenScraper sunucusunda bulunamadı.");
+      }
+    }
+
+    if (response && response.ok) {
       const data = await response.json();
       
-      // API Hatası Kontrolü (Hatalı hesap bilgileri vb.)
+      // API Hatası Kontrolü (Kotanın aşılması veya hatalı kimlik)
       if (data.response && data.response.errcode) {
         const err = data.response.errcode;
         if (err === 1 || err === 2 || err === 3) {
           alert(`⚠️ ScreenScraper Kimlik Hatası: Girdiğiniz kullanıcı adı veya şifre yanlış!\n\nLütfen sol paneldeki profil ayarlarından hesap bilgilerinizi düzeltin.`);
         } else if (err === 17) {
-          alert(`⚠️ ScreenScraper Kotası Aşıldı: Günlük sorgu limitinize ulaştınız ya da sunucu şu anda yoğun!`);
+          alert(`⚠️ ScreenScraper Kotası Aşıldı: Günlük sorgu limitinize ulaştınız ya da sunucu yoğun!`);
         } else {
-          console.warn("ScreenScraper API kodu hata:", err);
+          console.warn("ScreenScraper API hata kodu:", err);
           alert(`ScreenScraper hatası oluştu (Kod: ${err}). Arama yapılamadı.`);
         }
         btn.disabled = false;
@@ -2342,97 +3036,33 @@ async function triggerOnlineScrape() {
         return;
       }
 
+      const matches = [];
+
       if (data.response && data.response.jeu) {
-        const jeu = data.response.jeu;
-        const matches = [];
-
-        // A. Oyun Başlığı Çöz (Türkçe -> İngilizce -> Varsayılan)
-        let title = selectedRom.title;
-        if (jeu.noms && jeu.noms.length > 0) {
-          const trName = jeu.noms.find(n => n.langue.toLowerCase() === 'tr');
-          const enName = jeu.noms.find(n => n.langue.toLowerCase() === 'en');
-          title = trName ? trName.nom : (enName ? enName.nom : jeu.noms[0].nom);
+        // Tam dosya adı eşleştiyse tek oyunu ekle
+        matches.push(parseScreenScraperJeu(data.response.jeu));
+      } else if (data.response && data.response.jeux && Array.isArray(data.response.jeux)) {
+        // Metin araması sonucu geldiyse (maksimum 6 sonucu parse et)
+        const limitJeux = data.response.jeux.slice(0, 6);
+        for (const jeu of limitJeux) {
+          matches.push(parseScreenScraperJeu(jeu));
         }
+      }
 
-        // B. Açıklama Çöz (Türkçe -> İngilizce -> Varsayılan)
-        let desc = "";
-        if (jeu.synopsis && jeu.synopsis.length > 0) {
-          const trDesc = jeu.synopsis.find(s => s.langue.toLowerCase() === 'tr');
-          const enDesc = jeu.synopsis.find(s => s.langue.toLowerCase() === 'en');
-          desc = trDesc ? trDesc.texte : (enDesc ? enDesc.texte : jeu.synopsis[0].texte);
-        }
-
-        // C. Tür Çöz (Türkçe -> İngilizce -> Varsayılan)
-        let genre = "Action / Retro";
-        if (jeu.genres && jeu.genres.length > 0) {
-          const trGenre = jeu.genres[0].noms.find(n => n.langue.toLowerCase() === 'tr');
-          const enGenre = jeu.genres[0].noms.find(n => n.langue.toLowerCase() === 'en');
-          genre = trGenre ? trGenre.nom : (enGenre ? enGenre.nom : jeu.genres[0].noms[0].nom);
-        }
-
-        // D. Yapımcı ve Yayıncı Çöz
-        const developer = jeu.developpeur ? jeu.developpeur.nom : "Retro Dev";
-        const publisher = jeu.editeur ? jeu.editeur.nom : "Retro Classics";
-
-        // E. Yayın Tarihi Çöz
-        let releaseDate = "";
-        if (jeu.dates && jeu.dates.length > 0) {
-          const euDate = jeu.dates.find(d => d.region.toLowerCase() === 'eu');
-          const usDate = jeu.dates.find(d => d.region.toLowerCase() === 'us');
-          const rawDate = euDate ? euDate.date : (usDate ? usDate.date : jeu.dates[0].date);
-          if (rawDate && rawDate.length >= 4) {
-            releaseDate = rawDate.includes('-') ? rawDate : `${rawDate}-01-01`;
-          }
-        }
-
-        // F. Oyuncu Sayısı ve Puan Çöz
-        const players = jeu.joueurs ? jeu.joueurs.toString() : "1";
-        let rating = "0.80";
-        if (jeu.note && jeu.note.valeur) {
-          rating = (parseFloat(jeu.note.valeur) / 20).toFixed(2); // 20 üzerinden puanı 0.0 - 1.0 aralığına normalize et
-        }
-
-        // G. Medya URL'leri Çöz (2D Kapak ve Video)
-        let boxartUrl = "";
-        let videoUrl = "";
-        if (jeu.medias && jeu.medias.length > 0) {
-          const box2d = jeu.medias.find(m => m.type.toLowerCase() === 'box-2d');
-          const box3d = jeu.medias.find(m => m.type.toLowerCase() === 'box-3d');
-          const screen = jeu.medias.find(m => m.type.toLowerCase() === 'screenshot');
-          boxartUrl = box2d ? box2d.url : (box3d ? box3d.url : (screen ? screen.url : ""));
-
-          const vid = jeu.medias.find(m => m.type.toLowerCase() === 'video');
-          if (vid) videoUrl = vid.url;
-        }
-
-        matches.push({
-          id: `ss-${jeu.id || 'game'}`,
-          title: title,
-          system: activeConsole,
-          developer: developer,
-          publisher: publisher,
-          releasedate: releaseDate,
-          genre: genre,
-          players: players,
-          rating: rating,
-          description: desc,
-          image: boxartUrl || consoleData[activeConsole].config.defaultCart,
-          video: videoUrl
-        });
-
+      if (matches.length > 0) {
         btn.disabled = false;
         btn.innerHTML = originalText;
         presentScrapeMatches(matches);
         return;
       } else {
-        alert("🔍 ScreenScraper veritabanında bu ROM dosyasına ait hiçbir kayıt bulunamadı!");
+        alert("🔍 ScreenScraper veritabanında bu ROM dosyasına veya arama kelimesine ait hiçbir kayıt bulunamadı!");
       }
     } else {
-      throw new Error("CORS Proxy veya Sunucu bağlantı hatası");
+      throw new Error("Sunucu bağlantı hatası veya geçersiz CORS Proxy yanıtı.");
     }
   } catch (err) {
     console.error("Online scraper hatası:", err);
-    alert("⚠️ İnternetten scrape etme isteği başarısız oldu! Lütfen internet bağlantınızı veya CORS Proxy durumunu kontrol edin.");
+    alert(`⚠️ İnternetten scrape etme isteği başarısız oldu!\n\nHata Detayı: ${err.message || err}\n\nLütfen internet bağlantınızı, CORS Proxy durumunu veya yerel PHP sunucunuzu kontrol edin.`);
   }
 
   btn.disabled = false;
@@ -2463,8 +3093,46 @@ function presentScrapeMatches(matches) {
     `;
 
     card.addEventListener('click', async () => {
-      await applyScrapedGameMetadata(match);
-      modal.classList.remove('active');
+      // Create and append dynamic loading overlay inside the modal container to prevent interactions
+      const container = modal.querySelector('.modal-container');
+      const loaderOverlay = document.createElement('div');
+      loaderOverlay.className = 'modal-loader-overlay';
+      loaderOverlay.style = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(13, 14, 21, 0.85);
+        backdrop-filter: blur(5px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        border-radius: 12px;
+      `;
+      loaderOverlay.innerHTML = `
+        <div class="retro-spinner"></div>
+        <h4 style="color:hsl(var(--retro-cyan)); text-shadow:0 0 10px rgba(0,243,255,0.4); font-family:var(--font-tech); margin-top:0; margin-bottom:8px">Medya İndiriliyor</h4>
+        <p style="color:#fff; font-size:0.75rem; text-align:center; padding:0 20px; margin:0; line-height:1.4">Görsel ve tanıtım videosu SD karta kaydediliyor, lütfen bekleyin...</p>
+      `;
+      if (container) container.appendChild(loaderOverlay);
+      
+      // Disable close button interactions during download
+      const closeBtn = modal.querySelector('.close-modal-btn');
+      if (closeBtn) closeBtn.style.pointerEvents = 'none';
+
+      try {
+        await applyScrapedGameMetadata(match);
+      } catch (err) {
+        console.error("Scrape metadata uygulama hatası:", err);
+      } finally {
+        // Cleanup loader, restore buttons, and close modal
+        loaderOverlay.remove();
+        if (closeBtn) closeBtn.style.pointerEvents = 'auto';
+        modal.classList.remove('active');
+      }
     });
 
     resultsContainer.appendChild(card);
@@ -2508,7 +3176,14 @@ async function applyScrapedGameMetadata(scraped) {
         const imageBlob = await imgResponse.blob();
         
         let imagesHandle = null;
-        const imgFilename = `${safeTitle}.png`;
+        let imgExt = scraped.imageFormat || "png";
+        if (!scraped.imageFormat && scraped.image) {
+          const parsedExt = scraped.image.split('.').pop().split('?')[0];
+          if (parsedExt && parsedExt.length <= 4 && parsedExt.toLowerCase() !== 'php') {
+            imgExt = parsedExt.toLowerCase();
+          }
+        }
+        const imgFilename = `${safeTitle}.${imgExt}`;
 
         if (currentProfile.paths.imagesLoc === 'root-separate') {
           // Save in root/Imgs/<sys>/
@@ -2564,7 +3239,13 @@ async function applyScrapedGameMetadata(scraped) {
         const videoBlob = await vidResponse.blob();
         
         let videosHandle = null;
-        const vidExt = scraped.video.split('.').pop().split('?')[0] || "mp4";
+        let vidExt = scraped.videoFormat || "mp4";
+        if (!scraped.videoFormat && scraped.video) {
+          const parsedExt = scraped.video.split('.').pop().split('?')[0];
+          if (parsedExt && parsedExt.length <= 4 && parsedExt.toLowerCase() !== 'php') {
+            vidExt = parsedExt.toLowerCase();
+          }
+        }
         const vidFilename = `${safeTitle}.${vidExt}`;
 
         if (currentProfile.paths.imagesLoc === 'root-separate') {
@@ -3106,22 +3787,12 @@ async function tryLoadOrCreateSqliteDB(system) {
         game.dbRomPath = row.filename;
         
         if (game.localImagePath) {
-          await loadLocalImageBlob(system, game, game.localImagePath);
+          // Bypassed during initial scan for instant performance (lazy loaded in UI)
         }
       }
     }
-    
-    for (const game of system.games) {
-      if (!game.image) {
-        await tryAutoDetectLocalImage(system, game);
-      }
-    }
-    
   } catch (readErr) {
     console.error("Veritabanı kayıtları okunurken hata oluştu:", readErr);
-    for (const game of system.games) {
-      await tryAutoDetectLocalImage(system, game);
-    }
   }
 }
 
@@ -3275,6 +3946,18 @@ async function writeSqliteDBFile(system) {
     await writable.close();
     console.log(`SQLite veritabanı başarıyla dosyaya yazıldı: ${dbFilename}`);
     
+    // Update local IndexedDB cache
+    let consoleKey = null;
+    for (const k in consoleData) {
+      if (consoleData[k] === system) {
+        consoleKey = k;
+        break;
+      }
+    }
+    if (consoleKey) {
+      await saveGamesCache(consoleKey, system.games);
+      console.log(`[IndexedDB Cache] '${consoleKey}' için önbellek güncellendi (SQLite kaydı sonrası).`);
+    }
   } catch (writeErr) {
     console.error("SQLite veritabanı yazma hatası:", writeErr);
     alert("Hata: SQLite veritabanı dosyasına yazılamadı! Lütfen disk izinlerinizi kontrol edin.");
@@ -3423,6 +4106,38 @@ function updateBulkActionBarUI() {
     bar.style.display = 'flex';
   } else {
     bar.style.display = 'none';
+  }
+
+  // --- Right Inspector Multi-Selection View ---
+  const inspectorPanel = document.getElementById('sidebar-right');
+  if (inspectorPanel) {
+    if (selectedRomsBulk.length > 1) {
+      inspectorPanel.innerHTML = `
+        <div class="inspector-empty" style="padding: 40px 20px;">
+          <span class="inspector-empty-icon" style="font-size: 3rem; margin-bottom: 15px; display: inline-block;">📁</span>
+          <h3 style="color: hsl(var(--retro-cyan)); font-family: var(--font-tech); text-shadow: 0 0 10px rgba(0, 243, 255, 0.4); margin-top: 0; margin-bottom: 10px; font-size: 1.1rem; letter-spacing: 0.5px;">Çoklu Seçim Modu</h3>
+          <p style="color: #fff; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5;">Şu anda <strong>${selectedRomsBulk.length} adet oyun</strong> seçtiniz.</p>
+          <p style="color: var(--text-secondary); font-size: 0.75rem; line-height: 1.5; margin: 0;">Seçili oyunlar üzerinde alt barı kullanarak toplu silme işlemi gerçekleştirebilirsiniz. Tek bir oyunun detaylarını düzenlemek veya kapak görselini değiştirmek için lütfen çoklu seçimi kaldırınız.</p>
+        </div>
+      `;
+      // Clear active styling from single selected cards in the main grid/list
+      document.querySelectorAll('.rom-card.active, .rom-row-item.active').forEach(el => {
+        el.classList.remove('active');
+      });
+      selectedRom = null;
+    } else if (selectedRomsBulk.length === 1) {
+      // If exactly 1 item is checked, let's open its inspector!
+      const singleGame = selectedRomsBulk[0];
+      if (selectedRom !== singleGame) {
+        const card = document.querySelector(`.rom-card input[type="checkbox"]:checked, .rom-row-item input[type="checkbox"]:checked`);
+        if (card && card.closest('.rom-card, .rom-row-item')) {
+          selectRomForInspection(singleGame, card.closest('.rom-card, .rom-row-item'));
+        }
+      }
+    } else if (selectedRomsBulk.length === 0) {
+      // If we cleared all checkboxes, let's clear the inspector
+      clearInspector();
+    }
   }
 }
 

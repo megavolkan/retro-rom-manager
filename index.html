@@ -50,6 +50,10 @@
           <span class="status-indicator" id="workspace-indicator"></span>
           <span id="workspace-folder-path">Bağlı Değil</span>
         </div>
+        <!-- Quick Reconnect Button -->
+        <button class="picker-btn" id="btn-reconnect-sd" style="display:none; margin-top:10px; background:rgba(0,243,255,0.08); border:1px solid hsl(var(--retro-cyan)); color:#fff; font-size:0.7rem; font-weight:600; letter-spacing:0.5px; box-shadow:0 0 10px rgba(0,243,255,0.15)">
+          🔌 SON DİSKE HIZLI BAĞLAN
+        </button>
         <!-- Device Profile Badge -->
         <div id="profile-badge-container" style="display:none; margin-top:12px; font-size:0.75rem; background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:6px; border:1px solid var(--glass-border); display:flex; align-items:center; justify-content:space-between">
           <span style="font-weight:600; color:hsl(var(--retro-cyan))">Profil: <span id="lbl-profile-name" style="color:#fff">-</span></span>
@@ -367,6 +371,18 @@
                   <input type="password" class="form-input" id="inp-scraper-sspassword" placeholder="Şifreniz">
                 </div>
               </div>
+              <div class="form-row" style="margin-top:-4px">
+                <div class="form-field" style="grid-column: span 2">
+                  <label class="form-label" style="font-size:0.65rem">Tercih Edilen Görsel Tarzı</label>
+                  <select class="form-input" id="inp-scraper-media" style="width:100%; background:rgba(0,0,0,0.5); color:#fff; border:1px solid rgba(255,255,255,0.08); border-radius:4px; padding:6px 10px; font-size:0.7rem; font-family:inherit">
+                    <option value="mixrbv1">👾 Standart Karışım (3D Kutu + Ekran + Logo)</option>
+                    <option value="box-3d">📦 3D Kutu Resmi (3D Boxart)</option>
+                    <option value="box-2d">🖼️ 2D Kutu Resmi (Flat Boxart)</option>
+                    <option value="screenshot">🎮 Oyun İçi Ekran Görüntüsü (Gameplay)</option>
+                    <option value="logo">✨ Oyun Logosu (Transparent Wheel Logo)</option>
+                  </select>
+                </div>
+              </div>
               
               <div style="border-top:1px dashed rgba(255,255,255,0.05); padding-top:10px; margin-top:5px">
                 <label class="form-label" style="font-size:0.65rem; color:hsl(var(--retro-yellow))">Geliştirici Bilgileri (Gelişmiş & Otomatik Dolu)</label>
@@ -382,6 +398,13 @@
                 </div>
               </div>
             </div>
+          </div>
+          <!-- Gelişmiş Uygulama Ayarları -->
+          <div style="border-top:1px solid rgba(255,255,255,0.05); padding-top:15px; margin-top:15px;">
+            <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.68rem; font-weight:600; color:var(--text-secondary)">
+              <input type="checkbox" id="chk-auto-reconnect" checked style="accent-color:hsl(var(--retro-cyan)); cursor:pointer">
+              🔌 Açılışta Son Takılan SD Karta Hızlı Bağlan Butonunu Göster
+            </label>
           </div>
 
           <div style="display:flex; gap:10px; margin-top:20px; width:100%">
