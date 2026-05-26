@@ -1225,7 +1225,7 @@ async function deleteDeviceProfile() {
 
     // Re-run scanning selection starting from standard structure or prompting profile modal again
     await initWorkspaceFromHandle();
-    alert("Profil dosyası başarıyla silindi! Kart yapısı sıfırlandı.");
+    showToast("Profil dosyası başarıyla silindi! Kart yapısı sıfırlandı.", 'success');
 
   } catch (err) {
     console.error("Profil dosyası silinirken hata oluştu:", err);
@@ -3509,7 +3509,7 @@ function setupDragAndDrop() {
       }
       renderSidebarConsoles();
       renderActiveGames();
-      alert(`${addedCount} adet yeni ROM dosyası başarıyla SD kartınızdaki ${system.config.displayName} klasörüne kopyalandı!`);
+      showToast(`${addedCount} adet yeni ROM dosyası başarıyla SD kartınızdaki ${system.config.displayName} klasörüne kopyalandı!`, 'success');
     }
   });
 }
@@ -3660,7 +3660,7 @@ async function handleAutoDetectSchema(e) {
         db.close();
         btn.textContent = originalText;
         btn.disabled = false;
-        alert(`🎉 Şema başarıyla algılandı!\nTablo: "${selectedTable}"\nBulunan Sütunlar: ${columns.join(', ')}`);
+        showToast(`🎉 Şema başarıyla algılandı!\nTablo: "${selectedTable}"\nBulunan Sütunlar: ${columns.join(', ')}`, 'success');
       } catch (err) {
         console.error(err);
         btn.textContent = originalText;
@@ -4354,7 +4354,7 @@ async function deleteSingleRom(game) {
     renderSidebarConsoles();
     renderActiveGames();
     
-    alert(`"${game.title}" oyunu başarıyla silindi.`);
+    showToast(`"${game.title}" oyunu başarıyla silindi.`, 'success');
   } catch (err) {
     console.error("Oyun silinirken hata:", err);
     alert(`Hata: Oyun silinemedi! Lütfen dosya izinlerini ve SD kart bağlantısını kontrol edin.\nDetay: ${err.message}`);
@@ -4447,7 +4447,7 @@ async function deleteBulkRoms() {
   renderActiveGames();
 
   if (failCount === 0) {
-    alert(`Seçilen ${successCount} adet oyun başarıyla silindi.`);
+    showToast(`Seçilen ${successCount} adet oyun başarıyla silindi.`, 'success');
   } else {
     alert(`Silme işlemi tamamlandı.\nBaşarıyla Silinen: ${successCount}\nSilinemeyen: ${failCount}\nLütfen SD kart izinlerinizi kontrol edin.`);
   }
