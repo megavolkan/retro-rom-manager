@@ -2967,7 +2967,7 @@ function parseScreenScraperJeu(jeu) {
 }
 
 // --- Offline & Online Scraper Engine ---
-async function triggerOnlineScrape() {
+async function triggerOnlineScrape(forceOnline = false) {
   if (!selectedRom || !activeConsole) return;
 
   const btn = document.getElementById('btn-scrape-online');
@@ -2979,7 +2979,7 @@ async function triggerOnlineScrape() {
     // 1. Önce dahili retro veritabanında ara (Dahili Hızlı Çevrimdışı Eşleştirme)
     let dbMatch = null;
 
-    if (typeof RETRO_GAME_DB !== 'undefined') {
+    if (!forceOnline && typeof RETRO_GAME_DB !== 'undefined') {
       // Helper function for deep cleaning text to compare exactly without sequel collision
       const deepClean = (str) => {
         if (!str) return "";
@@ -3130,6 +3130,48 @@ function presentScrapeMatches(matches) {
   if (!modal || !resultsContainer) return;
 
   resultsContainer.innerHTML = '';
+
+  // Check if this is an offline match (contains an id that does not start with 'ss-')
+  const isOfflineMatch = matches.some(m => m.id && !m.id.startsWith('ss-'));
+
+  if (isOfflineMatch) {
+    // Add a beautiful info message about offline match with a force online search button
+    const infoBox = document.createElement('div');
+    infoBox.style = `
+      background: rgba(255, 235, 59, 0.05);
+      border: 1px solid rgba(255, 235, 59, 0.2);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      font-size: 0.78rem;
+      color: hsl(var(--retro-yellow));
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: var(--font-tech);
+      letter-spacing: 0.5px;
+      box-shadow: 0 0 10px rgba(255, 235, 95, 0.05);
+    `;
+    infoBox.innerHTML = `
+      <div><strong>💡 HIZLI ÇEVRİMDIŞI EŞLEŞME:</strong> Bu oyun dahili çevrimdışı kütüphanemizde eşleşti. Eğer resmi 3D kapak görselleri, tanıtım videoları veya ScreenScraper veritabanından daha fazla canlı sonuç çekmek istiyorsanız aşağıdaki butona basabilirsiniz.</div>
+      <button class="picker-btn" id="btn-force-online-scrape" style="background:rgba(0, 243, 255, 0.1); border-color:hsl(var(--retro-cyan)); color:hsl(var(--retro-cyan)); font-size:0.7rem; padding:8px 14px; font-weight:bold; cursor:pointer; width:100%; border-radius:4px; box-shadow:0 0 8px rgba(0,243,255,0.2)">
+        🔍 ScreenScraper Üzerinde Canlı Ara
+      </button>
+    `;
+    resultsContainer.appendChild(infoBox);
+
+    // Bind event listener to force online search
+    setTimeout(() => {
+      const forceBtn = document.getElementById('btn-force-online-scrape');
+      if (forceBtn) {
+        forceBtn.addEventListener('click', async () => {
+          modal.classList.remove('active');
+          await triggerOnlineScrape(true);
+        });
+      }
+    }, 50);
+  }
 
   matches.forEach(match => {
     const card = document.createElement('div');
