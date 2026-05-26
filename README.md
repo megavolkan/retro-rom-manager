@@ -1,5 +1,9 @@
 # 🎮 Retro ROM Manager & Scraper
 
+> [!NOTE]
+> **🤖 Yapay Zeka (AI) İş Birliğiyle Geliştirilmiştir (AI-Assisted Development)**
+> Bu proje; şeffaflık, etik yapay zeka kullanımı ve açık kaynak prensipleri doğrultusunda, bir insan geliştirici ile gelişmiş yapay zeka kodlama asistanının (Google DeepMind Antigravity) pair-programming (ortak programlama) yöntemiyle baştan sona iş birliği içinde tasarlayıp geliştirdiği bir yazılımdır.
+
 Retro el konsolları (Trimui Smart Pro, Miyoo Mini, Anbernic, Powkiddy vb.) ve retro emülasyon dağıtımları (CrossMix, OnionOS, ArkOS, JelOS, AmberELEC vb.) için özel olarak tasarlanmış, **görsel odaklı, platform bağımsız ve tarayıcı tabanlı** bir ROM yönetim ve kapak görseli scrape etme arayüzüdür.
 
 Tamamen modern **HTML5 File System Access API** (`showDirectoryPicker`) ile geliştirildiği için hiçbir kuruluma ihtiyaç duymadan Google Chrome veya Microsoft Edge üzerinden **Windows, macOS ve Linux** işletim sistemlerinde doğrudan yerel SD kart dizinlerinizi okuyup güncelleyebilir.
@@ -51,25 +55,16 @@ Yine tarayıcınızdan **`http://127.0.0.1:8080`** adresine giderek kullanmaya b
 
 ---
 
-## 🎮 Desteklenen Sistemler (17 Klasik Platform)
+## 🎮 Desteklenen Sistemler (40+ Klasik Platform)
 
-* Super Nintendo (SNES)
-* Game Boy Advance (GBA)
-* Nintendo (NES)
-* Game Boy (GB)
-* Game Boy Color (GBC)
-* Sega Genesis / Megadrive
-* PlayStation 1 (PSX)
-* Nintendo 64 (N64)
-* Capcom CPS1
-* Capcom CPS2
-* Capcom CPS3
-* Neo Geo
-* Arcade / MAME
-* Nintendo DS (NDS)
-* Sega Master System (SMS)
-* Sega Game Gear (GG)
-* PC Engine (PCE)
+Uygulama, hem otomatik klasör tarayıcılarında hem de ScreenScraper API entegrasyonlarında aşağıdaki popüler retro oyun platformlarını ve daha fazlasını tam kapsamlı olarak tanır:
+
+* **🎮 Nintendo:** Super Nintendo (SNES), Super Famicom (SFC), Game Boy (GB), Game Boy Color (GBC), Game Boy Advance (GBA), Nintendo DS (NDS), Nintendo 64 (N64), NES / Family Computer (Famicom), Famicom Disk System, GameCube
+* **🚀 Sega:** Sega Mega Drive, Sega Genesis, Sega Master System (SMS), Sega Game Gear (GG), Sega Saturn, Sega Dreamcast, Sega CD, Sega 32X, Sega NAOMI
+* **📀 Sony PlayStation:** PlayStation (PSX / PS1), PlayStation Portable (PSP), PSP Minis
+* **👾 Arcade / Jetonlu:** Capcom CPS1, CPS2, CPS3, Neo Geo, Neo Geo CD, Arcade / MAME, Daphne Laserdisc
+* **⌨️ Bilgisayar / Home Computer:** MSX, MSX2, Commodore 64, Commodore Amiga, Atari ST, Amstrad CPC, ZX Spectrum
+* **🌈 Diğer Popüler Sistemler:** WonderSwan (WS), WonderSwan Color (WSC), PICO-8, TIC-80, ScummVM, Atari 2600 / 5200 / 7800, Atari Lynx, ColecoVision, PC Engine (PCE), Intellivision
 
 ---
 
