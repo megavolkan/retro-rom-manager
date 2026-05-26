@@ -167,7 +167,8 @@ let currentProfile = {
     devid: "retrotool",
     devpassword: "devpwd"
   },
-  autoReconnect: true // Default enabled
+  autoReconnect: true, // Default enabled
+  eulaAccepted: false
 };
 
 // --- Console Configuration Mapping ---
@@ -708,7 +709,21 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Check and prepare quick reconnect
   checkAndPrepareReconnect();
+
+  // Check EULA acceptance status
+  checkEulaStatus();
 });
+
+// --- EULA Acceptance Check ---
+function checkEulaStatus() {
+  const isEulaAccepted = localStorage.getItem('rrm_eula_accepted') === 'true';
+  if (!isEulaAccepted) {
+    const eulaModal = document.getElementById('eula-modal');
+    if (eulaModal) {
+      eulaModal.classList.add('active');
+    }
+  }
+}
 
 // --- Check and Prepare Reconnection to Last Connected SD Card ---
 async function checkAndPrepareReconnect() {
@@ -1060,6 +1075,19 @@ function initUIBindings() {
       deleteBulkRoms();
     });
   }
+
+  // EULA Accept Button Listener
+  const btnAcceptEula = document.getElementById('btn-accept-eula');
+  if (btnAcceptEula) {
+    btnAcceptEula.addEventListener('click', () => {
+      localStorage.setItem('rrm_eula_accepted', 'true');
+      const eulaModal = document.getElementById('eula-modal');
+      if (eulaModal) {
+        eulaModal.classList.remove('active');
+      }
+      showToast("Kullanım koşulları kabul edildi!", "success");
+    });
+  }
 }
 
 // --- Update Advanced Folder Paths Default Inputs ---
@@ -1144,6 +1172,15 @@ async function initWorkspaceFromHandle() {
     currentProfile = JSON.parse(text);
     rrmasExists = true;
     console.log("Mevcut cihaz profili yüklendi:", currentProfile.cardName);
+
+    // Auto-accept EULA in localStorage if it was already accepted on this SD card (.rrmas)
+    if (currentProfile.eulaAccepted === true) {
+      localStorage.setItem('rrm_eula_accepted', 'true');
+      const eulaModal = document.getElementById('eula-modal');
+      if (eulaModal) {
+        eulaModal.classList.remove('active');
+      }
+    }
   } catch(err) {
     console.log(".rrmas profil dosyası bulunamadı, profil oluşturucu açılıyor.");
   }
@@ -1307,6 +1344,9 @@ async function saveDeviceProfileAndStart() {
     devpassword: document.getElementById('inp-scraper-devpassword').value.trim(),
     mediaPref: document.getElementById('inp-scraper-media').value
   };
+
+  // Ensure eula status is saved to profile
+  currentProfile.eulaAccepted = localStorage.getItem('rrm_eula_accepted') === 'true';
 
   // Save .rrmas file in SD Card root folder
   try {
