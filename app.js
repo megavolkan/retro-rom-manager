@@ -1069,6 +1069,27 @@ function initUIBindings() {
     });
   }
 
+  const btnBulkSelectAll = document.getElementById('btn-bulk-select-all');
+  if (btnBulkSelectAll) {
+    btnBulkSelectAll.addEventListener('click', () => {
+      const system = consoleData[activeConsole];
+      if (!system) return;
+
+      // Filter exactly the games currently active/visible in UI matching filters & search query
+      const filteredGames = system.games.filter(game => {
+        const matchesSearch = game.filename.toLowerCase().includes(activeFilters.search) || 
+                              game.title.toLowerCase().includes(activeFilters.search);
+        const matchesCover = activeFilters.missingCover ? game.image === "" : true;
+        return matchesSearch && matchesCover;
+      });
+
+      selectedRomsBulk = [...filteredGames];
+      renderActiveGames();
+      updateBulkActionBarUI();
+      showToast(`${filteredGames.length} adet arama sonucu başarıyla seçildi!`, "success");
+    });
+  }
+
   const btnBulkDelete = document.getElementById('btn-bulk-delete');
   if (btnBulkDelete) {
     btnBulkDelete.addEventListener('click', () => {
