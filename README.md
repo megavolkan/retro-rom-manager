@@ -1,8 +1,11 @@
 # 🎮 Retro ROM Manager & Scraper
 
+[![Live Demo](https://img.shields.io/badge/Canl%C4%B1_Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://retro-rom-manager.vercel.app/)
+
 > [!NOTE]
 > **🤖 Yapay Zeka (AI) İş Birliğiyle Geliştirilmiştir (AI-Assisted Development)**
 > Bu proje; şeffaflık, etik yapay zeka kullanımı ve açık kaynak prensipleri doğrultusunda, bir insan geliştirici ile gelişmiş yapay zeka kodlama asistanının (Google DeepMind Antigravity) pair-programming (ortak programlama) yöntemiyle baştan sona iş birliği içinde tasarlayıp geliştirdiği bir yazılımdır.
+
 
 Retro el konsolları (Trimui Smart Pro, Miyoo Mini, Anbernic, Powkiddy vb.) ve retro emülasyon dağıtımları (CrossMix, OnionOS, ArkOS, JelOS, AmberELEC vb.) için özel olarak tasarlanmış, **görsel odaklı, platform bağımsız ve tarayıcı tabanlı** bir ROM yönetim ve kapak görseli scrape etme arayüzüdür.
 
