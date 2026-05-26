@@ -1431,3 +1431,114 @@ body.image-fit-cover .match-thumb {
   from { transform: scale(1); opacity: 1; }
   to { transform: scale(0.9); opacity: 0; }
 }
+
+/* ==========================================================================
+   FIND DUPLICATES GROUP STYLING
+   ========================================================================== */
+.duplicate-group-panel {
+  background: rgba(22, 25, 37, 0.45);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 235, 59, 0.08);
+  border-left: 3px solid hsl(var(--retro-yellow));
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.duplicate-group-panel:hover {
+  border-color: rgba(255, 235, 59, 0.2);
+  box-shadow: 0 4px 25px rgba(255, 235, 95, 0.04);
+}
+.duplicate-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 10px;
+}
+.duplicate-group-title {
+  font-family: var(--font-tech);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.duplicate-count-badge {
+  background: rgba(255, 235, 59, 0.08);
+  border: 1px solid hsl(var(--retro-yellow));
+  color: hsl(var(--retro-yellow));
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 2px hsl(var(--retro-yellow));
+  box-shadow: 0 0 5px rgba(255, 235, 95, 0.2);
+}
+.duplicate-file-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px 15px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  margin-bottom: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  transition: all 0.2s ease;
+}
+.duplicate-file-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.duplicate-file-row:last-child {
+  margin-bottom: 0;
+}
+.duplicate-row-chk {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: hsl(var(--retro-yellow));
+}
+.duplicate-row-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.duplicate-row-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  word-break: break-all;
+}
+.duplicate-row-meta {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.duplicate-ext-badge {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+#btn-toggle-duplicates.active {
+  border-color: hsl(var(--retro-yellow)) !important;
+  color: hsl(var(--retro-yellow)) !important;
+  box-shadow: 0 0 12px hsl(var(--retro-yellow) / 0.35) !important;
+  text-shadow: 0 0 2px hsl(var(--retro-yellow)) !important;
+}
+

@@ -14,6 +14,7 @@ let activeFilters = {
   missingCover: false
 };
 let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
+let showDuplicatesOnly = false;      // Toggle to show duplicate ROMs grouped
 
 // --- IndexedDB for Directory Handle Storage & Games Cache ---
 const DB_NAME = 'RetroRomManagerDB';
@@ -808,6 +809,21 @@ function initUIBindings() {
     chkShowEmpty.addEventListener('change', (e) => {
       showEmptySystems = e.target.checked;
       renderSidebarConsoles();
+    });
+  }
+
+  // Filter: Find Duplicates Toggle
+  const btnToggleDuplicates = document.getElementById('btn-toggle-duplicates');
+  if (btnToggleDuplicates) {
+    btnToggleDuplicates.addEventListener('click', () => {
+      showDuplicatesOnly = !showDuplicatesOnly;
+      btnToggleDuplicates.classList.toggle('active', showDuplicatesOnly);
+      
+      if (showDuplicatesOnly) {
+        showToast("Mükerrer kopya filtreleme modu aktif!", "success");
+      }
+      
+      renderActiveGames();
     });
   }
 
@@ -2118,6 +2134,11 @@ function renderActiveGames() {
     return matchesSearch && matchesCover;
   });
 
+  if (showDuplicatesOnly) {
+    renderDuplicateGroupsView(container, filteredGames);
+    return;
+  }
+
   if (filteredGames.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
@@ -2334,6 +2355,154 @@ function renderListView(container, games) {
 
   container.innerHTML = '';
   container.appendChild(list);
+}
+
+// --- Get a normalized title key for duplicate detection ---
+function getNormalizedGameKey(filename) {
+  // Remove extension
+  let name = filename.substring(0, filename.lastIndexOf('.')) || filename;
+  // Remove parentheses and brackets content (USA, Europe, Rev 1, etc.)
+  name = name.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '');
+  // Remove special characters, punctuation, and extra spaces
+  name = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return name.trim();
+}
+
+// --- Render Duplicate Groups View Mode ---
+function renderDuplicateGroupsView(container, games) {
+  // 1. Group games by their normalized key
+  const groups = {};
+  games.forEach(game => {
+    const key = getNormalizedGameKey(game.filename);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(game);
+  });
+
+  // 2. Filter groups to only keep duplicate groups (length > 1)
+  const duplicateKeys = Object.keys(groups).filter(key => groups[key].length > 1);
+
+  if (duplicateKeys.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state" style="border-color: rgba(255, 235, 59, 0.1);">
+        <span class="empty-icon" style="color: hsl(var(--retro-yellow)); text-shadow: 0 0 10px rgba(255,235,95,0.4)">✨</span>
+        <h3 class="empty-title" style="color:#fff">Mükerrer Kopya Bulunmadı!</h3>
+        <p class="empty-desc">Harika! Bu konsol klasöründeki tüm oyunlar benzersiz görünüyor. Mükerrer hiçbir kopya tespit edilmedi.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'rom-duplicates-layout';
+  wrapper.style = `
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  `;
+
+  duplicateKeys.forEach(key => {
+    const groupGames = groups[key];
+    
+    // Sort games in the group: prefer .zip files, then alphabetically
+    groupGames.sort((a, b) => {
+      const extA = a.filename.split('.').pop().toLowerCase();
+      const extB = b.filename.split('.').pop().toLowerCase();
+      if (extA === 'zip' && extB !== 'zip') return -1;
+      if (extA !== 'zip' && extB === 'zip') return 1;
+      return a.filename.localeCompare(b.filename);
+    });
+
+    const panel = document.createElement('div');
+    panel.className = 'duplicate-group-panel';
+
+    // Build the header with Title, count, and the "Select All Except One" button
+    const header = document.createElement('div');
+    header.className = 'duplicate-group-header';
+    
+    // Clean up clean title name for header display from first game
+    const displayTitle = cleanTitleForSearch(groupGames[0].filename);
+
+    header.innerHTML = `
+      <div class="duplicate-group-title">
+        🎮 <span>${displayTitle}</span>
+        <span class="duplicate-count-badge">${groupGames.length} Adet Kopya</span>
+      </div>
+      <button class="filter-btn btn-keep-one" style="font-size:0.65rem; padding:4px 10px; background:rgba(0, 243, 255, 0.05); border-color:hsl(var(--retro-cyan)); color:hsl(var(--retro-cyan)); font-weight:bold; cursor:pointer;" type="button">
+        ☝️ 1 Tane Hariç Seç
+      </button>
+    `;
+
+    panel.appendChild(header);
+
+    // Render each duplicate file as a row
+    groupGames.forEach(game => {
+      const row = document.createElement('div');
+      row.className = 'duplicate-file-row';
+      
+      const isChecked = selectedRomsBulk.includes(game);
+      const isScraped = game.image !== "" || game.localImagePath !== "";
+      const ext = game.filename.split('.').pop();
+
+      row.innerHTML = `
+        <input type="checkbox" class="duplicate-row-chk" ${isChecked ? 'checked' : ''}>
+        <div class="duplicate-row-info">
+          <div class="duplicate-row-name" title="${game.filename}">${game.filename}</div>
+          <div class="duplicate-row-meta">
+            <span class="duplicate-ext-badge">${ext}</span>
+            <span>${isScraped ? '🟢 Görsel Kayıtlı' : '🔴 Görsel Eksik'}</span>
+          </div>
+        </div>
+      `;
+
+      // Click row to show details in right inspector panel
+      row.addEventListener('click', (e) => {
+        if (e.target.className !== 'duplicate-row-chk') {
+          selectRomForInspection(game, row);
+        }
+      });
+
+      // Handle checkbox change
+      const chk = row.querySelector('.duplicate-row-chk');
+      if (chk) {
+        chk.addEventListener('change', (e) => {
+          if (e.target.checked) {
+            if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+          } else {
+            selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+          }
+          updateBulkActionBarUI();
+        });
+      }
+
+      panel.appendChild(row);
+    });
+
+    // Bind event for "1 Tane Hariç Seç" (Select All Except First/Best One)
+    const keepOneBtn = header.querySelector('.btn-keep-one');
+    if (keepOneBtn) {
+      keepOneBtn.addEventListener('click', () => {
+        // We keep the first game (index 0) unselected, and select all others (indices 1 to N)
+        for (let i = 1; i < groupGames.length; i++) {
+          const game = groupGames[i];
+          if (!selectedRomsBulk.includes(game)) {
+            selectedRomsBulk.push(game);
+          }
+        }
+        // Ensure the first one is NOT selected (so we keep exactly one!)
+        selectedRomsBulk = selectedRomsBulk.filter(g => g !== groupGames[0]);
+
+        // Re-render the checkboxes in this panel and global UI
+        renderActiveGames();
+        updateBulkActionBarUI();
+        showToast(`"${displayTitle}" grubu için 1 kopya hariç tüm dosyalar seçildi!`, "success");
+      });
+    }
+
+    wrapper.appendChild(panel);
+  });
+
+  container.innerHTML = '';
+  container.appendChild(wrapper);
 }
 
 // --- Select ROM for Inspection & Display in Right Panel ---
