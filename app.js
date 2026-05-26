@@ -2978,9 +2978,17 @@ async function triggerOnlineScrape() {
   try {
     // 1. Önce dahili retro veritabanında ara (Dahili Hızlı Çevrimdışı Eşleştirme)
     let dbMatch = null;
-    const filenameLower = selectedRom.filename.toLowerCase();
 
     if (typeof RETRO_GAME_DB !== 'undefined') {
+      // Helper function for deep cleaning text to compare exactly without sequel collision
+      const deepClean = (str) => {
+        if (!str) return "";
+        return str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+      };
+
+      const cleanedName = cleanTitleForSearch(selectedRom.filename);
+      const deepCleanedFilename = deepClean(cleanedName);
+
       dbMatch = RETRO_GAME_DB.find(game => {
         const dbSystem = game.system;
         const targetSystem = activeConsole;
@@ -2998,8 +3006,13 @@ async function triggerOnlineScrape() {
                             (dbSystem === 'psx' && targetSystem === 'ps1') ||
                             (dbSystem === 'ps1' && targetSystem === 'psx');
         if (!systemMatch) return false;
-        return game.filenameKeywords.some(kw => filenameLower.includes(kw)) ||
-               filenameLower.includes(game.title.toLowerCase());
+
+        // Exact match on deep-cleaned title or deep-cleaned keywords to avoid sequel collision
+        const deepCleanedTitle = deepClean(game.title);
+        const matchTitle = (deepCleanedFilename === deepCleanedTitle);
+        const matchKeyword = game.filenameKeywords && game.filenameKeywords.some(kw => deepClean(kw) === deepCleanedFilename);
+
+        return matchTitle || matchKeyword;
       });
     }
 
