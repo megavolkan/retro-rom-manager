@@ -2488,10 +2488,10 @@ async function saveSelectedRomMetadata() {
   // Write changes depending on storage type
   if (currentProfile.metadataStorage === 'sqlite') {
     await writeSqliteDBFile(consoleData[activeConsole]);
-    alert("Oyun bilgileri başarıyla SD karttaki SQLite cache veritabanına kaydedildi!");
+    showToast("Oyun bilgileri başarıyla SQLite veritabanına kaydedildi!", 'success');
   } else {
     await writeGamelistXMLFile(consoleData[activeConsole]);
-    alert("Oyun bilgileri başarıyla SD karttaki gamelist.xml dosyasına kaydedildi!");
+    showToast("Oyun bilgileri başarıyla gamelist.xml dosyasına kaydedildi!", 'success');
   }
 
   // Re-render
@@ -3302,10 +3302,10 @@ async function applyScrapedGameMetadata(scraped) {
   saveBtn.innerHTML = `💾 Kaydediliyor...`;
   if (currentProfile.metadataStorage === 'sqlite') {
     await writeSqliteDBFile(system);
-    alert("Oyun bilgileri internetten çekildi, kapak resmi ve tanıtım videosu SD karttaki hedefine kaydedildi ve SQLite veritabanı güncellendi!");
+    showToast("Oyun bilgileri internetten çekildi ve veritabanı güncellendi!", 'success');
   } else {
     await writeGamelistXMLFile(system);
-    alert("Oyun bilgileri internetten çekildi, kapak resmi ve tanıtım videosu SD karttaki hedefine kaydedildi ve gamelist.xml güncellendi!");
+    showToast("Oyun bilgileri internetten çekildi ve gamelist.xml güncellendi!", 'success');
   }
   
   renderActiveGames();
@@ -3383,7 +3383,7 @@ async function selectManualCoverImage() {
       await writeGamelistXMLFile(system);
     }
     renderActiveGames();
-    alert("Kapak resmi başarıyla değiştirildi ve SD kartınıza kaydedildi!");
+    showToast("Kapak resmi başarıyla değiştirildi ve kaydedildi!", 'success');
 
   } catch (err) {
     console.error("Görsel seçme hatası:", err);
@@ -4451,4 +4451,31 @@ async function deleteBulkRoms() {
   } else {
     alert(`Silme işlemi tamamlandı.\nBaşarıyla Silinen: ${successCount}\nSilinemeyen: ${failCount}\nLütfen SD kart izinlerinizi kontrol edin.`);
   }
+}
+
+// --- Show Non-blocking Toast Notification ---
+function showToast(message, type = 'success') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `retro-toast ${type}`;
+  
+  const icon = type === 'success' ? '🟢' : '🔴';
+  toast.innerHTML = `<span>${icon}</span> <span style="flex-grow:1">${message}</span>`;
+  
+  container.appendChild(toast);
+  
+  // Remove from DOM after animations complete
+  setTimeout(() => {
+    toast.remove();
+    // Clean up container if empty
+    if (container.children.length === 0) {
+      container.remove();
+    }
+  }, 3000);
 }
