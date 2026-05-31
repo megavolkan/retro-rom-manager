@@ -2461,8 +2461,8 @@ function getNormalizedGameKey(filename) {
   let name = filename.substring(0, filename.lastIndexOf('.')) || filename;
   // Remove parentheses and brackets content (USA, Europe, Rev 1, etc.)
   name = name.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '');
-  // Remove special characters, punctuation, and extra spaces
-  name = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Remove special characters, punctuation, and extra spaces (supporting international Unicode alphabets)
+  name = name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
   return name.trim();
 }
 
@@ -3271,7 +3271,7 @@ async function triggerOnlineScrape(forceOnline = false) {
       // Helper function for deep cleaning text to compare exactly without sequel collision
       const deepClean = (str) => {
         if (!str) return "";
-        return str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        return str.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '').trim();
       };
 
       const cleanedName = cleanTitleForSearch(selectedRom.filename);
@@ -3849,7 +3849,7 @@ async function processSingleRomSilent(game) {
     let dbMatch = null;
     const deepClean = (str) => {
       if (!str) return "";
-      return str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+      return str.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '').trim();
     };
 
     const cleanedName = cleanTitleForSearch(game.filename);
