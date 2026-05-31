@@ -126,6 +126,10 @@
             🔍 Kopyaları Bul
           </button>
           
+          <button class="filter-btn" id="btn-system-bulk-scrape" title="Sistemdeki Tüm Oyunları Sırayla Scrape Et" style="border-color: rgba(0, 243, 255, 0.15); color: rgba(255, 255, 255, 0.85); transition: all 0.3s ease;">
+            📡 Toplu Scrape
+          </button>
+          
           <div class="view-toggle">
             <button class="toggle-btn active" id="btn-grid-view" title="Izgara Görünümü">
               ⬜
@@ -464,7 +468,62 @@
     <div style="display:flex; gap:10px">
       <button class="filter-btn" id="btn-bulk-select-all" style="font-size:0.75rem; padding:6px 12px; cursor:pointer">Hepsini Seç</button>
       <button class="filter-btn" id="btn-bulk-deselect" style="font-size:0.75rem; padding:6px 12px; cursor:pointer">Seçimi Kaldır</button>
+      <button class="scrape-btn" id="btn-bulk-scrape-selected" style="background:rgba(0, 243, 255, 0.15); border:1px solid hsl(var(--retro-cyan)); color:#fff; font-size:0.75rem; padding:6px 14px; box-shadow:none; height:auto; cursor:pointer">🔍 Seçilenleri Scrape Et</button>
       <button class="scrape-btn" id="btn-bulk-delete" style="background:rgba(255, 56, 96, 0.15); border:1px solid hsl(var(--retro-red)); color:#fff; font-size:0.75rem; padding:6px 14px; box-shadow:none; height:auto; cursor:pointer">🗑️ Seçilenleri Sil</button>
+    </div>
+  </div>
+
+  <!-- Toplu Scrape Tam Ekran Modalı -->
+  <div id="bulk-scrape-modal" class="bulk-modal-fullscreen" style="display: none;">
+    <div class="bulk-modal-container glass-panel">
+      <!-- Modal Başlık / Header -->
+      <div class="bulk-modal-header">
+        <h3 class="bulk-modal-title">📡 TOPLU ROM SCRAPER <span class="version-badge">v1.7.0</span></h3>
+        <div class="bulk-stats">
+          <div class="bulk-stat-item">
+            <span class="stat-label">Toplam</span>
+            <span class="stat-value" id="bulk-stat-total">0</span>
+          </div>
+          <div class="bulk-stat-item success">
+            <span class="stat-label">Başarılı</span>
+            <span class="stat-value" id="bulk-stat-success">0</span>
+          </div>
+          <div class="bulk-stat-item failed">
+            <span class="stat-label">Başarısız</span>
+            <span class="stat-value" id="bulk-stat-failed">0</span>
+          </div>
+          <div class="bulk-stat-item pending">
+            <span class="stat-label">Kalan</span>
+            <span class="stat-value" id="bulk-stat-remaining">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- İlerleme Çubuğu / Progress Bar -->
+      <div class="bulk-progress-wrapper">
+        <div class="bulk-progress-bar-bg">
+          <div class="bulk-progress-bar-fill" id="bulk-progress-fill" style="width: 0%"></div>
+        </div>
+        <span class="bulk-progress-percent" id="bulk-progress-percent">0%</span>
+      </div>
+
+      <!-- Anlık İşlem Detayı / Active Game Info -->
+      <div class="bulk-active-info" id="bulk-active-title">
+        Hazırlanıyor, lütfen bekleyin...
+      </div>
+
+      <!-- Oyun Listesi / Game Queue List -->
+      <div class="bulk-list-container">
+        <div id="bulk-scrape-list" class="bulk-scrape-queue-list">
+          <!-- Dinamik doldurulacak -->
+        </div>
+      </div>
+
+      <!-- Modal Kontrolleri / Footer Buttons -->
+      <div class="bulk-modal-footer">
+        <button class="scrape-btn cancel-btn" id="btn-bulk-cancel">🛑 İşlemi İptal Et</button>
+        <button class="picker-btn" id="btn-bulk-close" style="display: none; width: 100%; border-radius: 6px; font-weight: bold; cursor: pointer; text-shadow: 0 0 5px rgba(255,255,255,0.2)">❌ Kapat</button>
+      </div>
     </div>
   </div>
 

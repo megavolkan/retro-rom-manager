@@ -1542,3 +1542,301 @@ body.image-fit-cover .match-thumb {
   text-shadow: 0 0 2px hsl(var(--retro-yellow)) !important;
 }
 
+/* ==========================================================================
+   BULK SCRAPE FULLSCREEN MODAL STYLES
+   ========================================================================== */
+.bulk-modal-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(8, 10, 15, 0.85);
+  backdrop-filter: blur(12px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in 0.25s ease-out;
+}
+
+.bulk-modal-container {
+  width: 90%;
+  max-width: 800px;
+  height: 85vh;
+  background: rgba(22, 26, 40, 0.65) !important;
+  border: 1px solid rgba(0, 243, 255, 0.15) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 243, 255, 0.03) !important;
+  border-radius: 12px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+}
+
+.bulk-modal-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 15px;
+}
+
+.bulk-modal-title {
+  margin: 0;
+  font-family: var(--font-tech);
+  font-size: 1.2rem;
+  color: #fff;
+  letter-spacing: 1px;
+  text-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bulk-modal-title .version-badge {
+  font-size: 0.65rem;
+  background: rgba(0, 243, 255, 0.1);
+  border: 1px solid hsl(var(--retro-cyan));
+  color: hsl(var(--retro-cyan));
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.bulk-stats {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.bulk-stat-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 12px;
+  border-radius: 6px;
+  min-width: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bulk-stat-item .stat-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.bulk-stat-item .stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--font-tech);
+  color: #fff;
+}
+
+.bulk-stat-item.success {
+  border-color: rgba(0, 255, 102, 0.2);
+  background: rgba(0, 255, 102, 0.03);
+}
+.bulk-stat-item.success .stat-value {
+  color: #00ff66;
+  text-shadow: 0 0 5px rgba(0, 255, 102, 0.2);
+}
+
+.bulk-stat-item.failed {
+  border-color: rgba(255, 56, 96, 0.2);
+  background: rgba(255, 56, 96, 0.03);
+}
+.bulk-stat-item.failed .stat-value {
+  color: #ff3860;
+  text-shadow: 0 0 5px rgba(255, 56, 96, 0.2);
+}
+
+.bulk-stat-item.pending {
+  border-color: rgba(255, 235, 59, 0.2);
+  background: rgba(255, 235, 59, 0.03);
+}
+.bulk-stat-item.pending .stat-value {
+  color: hsl(var(--retro-yellow));
+  text-shadow: 0 0 5px rgba(255, 235, 95, 0.2);
+}
+
+/* Progress bar */
+.bulk-progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+}
+
+.bulk-progress-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bulk-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, hsl(var(--retro-cyan)), #00ff66);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.4);
+  width: 0%;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bulk-progress-percent {
+  font-family: var(--font-tech);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+  min-width: 45px;
+  text-align: right;
+}
+
+.bulk-active-info {
+  font-size: 0.8rem;
+  color: #fff;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 3px solid hsl(var(--retro-cyan));
+  border-radius: 4px;
+  font-family: var(--font-tech);
+  letter-spacing: 0.5px;
+}
+
+/* Queue List Container */
+.bulk-list-container {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 15px;
+}
+
+.bulk-scrape-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Queue row item */
+.bulk-queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Pending */
+.bulk-queue-item.status-pending {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Active */
+.bulk-queue-item.status-active {
+  background: rgba(255, 152, 0, 0.08);
+  border-color: rgba(255, 152, 0, 0.3);
+  color: #ff9800;
+  box-shadow: 0 0 10px rgba(255, 152, 0, 0.05);
+  animation: pulse-active-row 1.5s infinite alternate;
+}
+
+@keyframes pulse-active-row {
+  from { border-color: rgba(255, 152, 0, 0.2); }
+  to { border-color: rgba(255, 152, 0, 0.6); }
+}
+
+/* Success */
+.bulk-queue-item.status-success {
+  background: rgba(0, 255, 102, 0.04);
+  border-color: rgba(0, 255, 102, 0.15);
+  color: #a8ffb2;
+}
+
+/* Failed */
+.bulk-queue-item.status-failed {
+  background: rgba(255, 56, 96, 0.04);
+  border-color: rgba(255, 56, 96, 0.15);
+  color: #ffb3b8;
+}
+
+.bulk-item-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+
+.bulk-item-status-badge {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-tech);
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-pending .bulk-item-status-badge {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.status-active .bulk-item-status-badge {
+  background: rgba(255, 152, 0, 0.15);
+  color: #ff9800;
+  text-shadow: 0 0 2px #ff9800;
+}
+
+.status-success .bulk-item-status-badge {
+  background: rgba(0, 255, 102, 0.15);
+  color: #00ff66;
+  text-shadow: 0 0 2px #00ff66;
+}
+
+.status-failed .bulk-item-status-badge {
+  background: rgba(255, 56, 96, 0.15);
+  color: #ff3860;
+  text-shadow: 0 0 2px #ff3860;
+}
+
+/* Footer / Controls */
+.bulk-modal-footer {
+  display: flex;
+  gap: 15px;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 15px;
+}
+
+.bulk-modal-footer .scrape-btn.cancel-btn {
+  background: rgba(255, 56, 96, 0.15);
+  border: 1px solid hsl(var(--retro-red));
+  color: #fff;
+  width: 100%;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  height: 42px;
+  text-shadow: 0 0 5px rgba(255, 56, 96, 0.2);
+  transition: all 0.2s ease;
+}
+
+.bulk-modal-footer .scrape-btn.cancel-btn:hover {
+  background: rgba(255, 56, 96, 0.25);
+  box-shadow: 0 0 10px rgba(255, 56, 96, 0.15);
+}
+
+

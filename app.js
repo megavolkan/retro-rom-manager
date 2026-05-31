@@ -16,6 +16,14 @@ let activeFilters = {
 let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
 let showDuplicatesOnly = false;      // Toggle to show duplicate ROMs grouped
 
+// --- Bulk Scraper State ---
+let bulkQueue = [];                  // ROM objects to be processed
+let bulkActiveIndex = 0;             // Index of the currently processed ROM
+let bulkSuccessCount = 0;            // Total successfully scraped ROMs
+let bulkFailedCount = 0;             // Total failed ROMs
+let isBulkCancelled = false;         // Cancellation state flag
+let isBulkRunning = false;           // Running status flag
+
 // --- IndexedDB for Directory Handle Storage & Games Cache ---
 const DB_NAME = 'RetroRomManagerDB';
 const STORE_NAME = 'handles';
@@ -1110,6 +1118,61 @@ function initUIBindings() {
   if (btnBulkDelete) {
     btnBulkDelete.addEventListener('click', () => {
       deleteBulkRoms();
+    });
+  }
+
+  // Bulk Scrape triggers
+  const btnSystemBulkScrape = document.getElementById('btn-system-bulk-scrape');
+  if (btnSystemBulkScrape) {
+    btnSystemBulkScrape.addEventListener('click', () => {
+      const system = consoleData[activeConsole];
+      if (!system || !system.games || system.games.length === 0) {
+        showToast("Scrape edilecek oyun bulunamadı!", "error");
+        return;
+      }
+      // Get filtered games in the active system
+      const filtered = system.games.filter(game => {
+        const matchesSearch = game.filename.toLowerCase().includes(activeFilters.search) || 
+                              game.title.toLowerCase().includes(activeFilters.search);
+        const matchesCover = activeFilters.missingCover ? game.image === "" : true;
+        return matchesSearch && matchesCover;
+      });
+      if (filtered.length === 0) {
+        showToast("Filtrelere uygun oyun bulunamadı!", "error");
+        return;
+      }
+      startBulkScrape(filtered);
+    });
+  }
+
+  const btnBulkScrapeSelected = document.getElementById('btn-bulk-scrape-selected');
+  if (btnBulkScrapeSelected) {
+    btnBulkScrapeSelected.addEventListener('click', () => {
+      if (selectedRomsBulk.length === 0) {
+        showToast("Scrape etmek için en az 1 oyun seçmelisiniz!", "error");
+        return;
+      }
+      startBulkScrape([...selectedRomsBulk]);
+    });
+  }
+
+  const btnBulkCancel = document.getElementById('btn-bulk-cancel');
+  if (btnBulkCancel) {
+    btnBulkCancel.addEventListener('click', () => {
+      if (confirm("Toplu tarama işlemini iptal etmek istediğinize emin misiniz? O ana kadar indirilen tüm veriler kaydedilecektir.")) {
+        isBulkCancelled = true;
+        btnBulkCancel.disabled = true;
+        btnBulkCancel.innerHTML = `🛑 İptal ediliyor...`;
+      }
+    });
+  }
+
+  const btnBulkClose = document.getElementById('btn-bulk-close');
+  if (btnBulkClose) {
+    btnBulkClose.addEventListener('click', () => {
+      const modal = document.getElementById('bulk-scrape-modal');
+      if (modal) modal.style.display = 'none';
+      renderActiveGames();
     });
   }
 
@@ -3598,6 +3661,505 @@ async function applyScrapedGameMetadata(scraped) {
   // Reset button state
   saveBtn.disabled = false;
   saveBtn.innerHTML = originalText;
+}
+
+// ==========================================================================
+// v1.7.0 TOPLU SCRAPE (BULK SCRAPER) ENGINE
+// ==========================================================================
+
+function parseScreenScraperJeuBulk(jeu, game) {
+  // Oyun Başlığı Çöz
+  let title = game.title || game.filename.substring(0, game.filename.lastIndexOf('.')) || game.filename;
+  if (jeu.noms && jeu.noms.length > 0) {
+    const trName = jeu.noms.find(n => n && n.region && typeof n.region === 'string' && n.region.toLowerCase() === 'tr');
+    const usName = jeu.noms.find(n => n && n.region && typeof n.region === 'string' && n.region.toLowerCase() === 'us');
+    const euName = jeu.noms.find(n => n && n.region && typeof n.region === 'string' && n.region.toLowerCase() === 'eu');
+    const ssName = jeu.noms.find(n => n && n.region && typeof n.region === 'string' && n.region.toLowerCase() === 'ss');
+    const matchedNameObj = trName || usName || euName || ssName || jeu.noms[0];
+    if (matchedNameObj && matchedNameObj.text) {
+      title = matchedNameObj.text;
+    }
+  }
+
+  // Açıklama Çöz
+  let desc = "";
+  if (jeu.synopsis && jeu.synopsis.length > 0) {
+    const trDesc = jeu.synopsis.find(s => s && s.langue && typeof s.langue === 'string' && s.langue.toLowerCase() === 'tr');
+    const enDesc = jeu.synopsis.find(s => s && s.langue && typeof s.langue === 'string' && s.langue.toLowerCase() === 'en');
+    const matchedDesc = trDesc || enDesc || jeu.synopsis[0];
+    if (matchedDesc && matchedDesc.text) {
+      desc = matchedDesc.text;
+    }
+  }
+
+  // Tür Çöz
+  let genre = "Action / Retro";
+  if (jeu.genres && jeu.genres.length > 0 && jeu.genres[0] && jeu.genres[0].noms) {
+    const trGenre = jeu.genres[0].noms.find(n => n && n.langue && typeof n.langue === 'string' && n.langue.toLowerCase() === 'tr');
+    const enGenre = jeu.genres[0].noms.find(n => n && n.langue && typeof n.langue === 'string' && n.langue.toLowerCase() === 'en');
+    const matchedGenreObj = trGenre || enGenre || jeu.genres[0].noms[0];
+    if (matchedGenreObj && matchedGenreObj.text) {
+      genre = matchedGenreObj.text;
+    }
+  }
+
+  // Yapımcı ve Yayıncı
+  const developer = (jeu.developpeur && jeu.developpeur.text) ? jeu.developpeur.text : "Retro Dev";
+  const publisher = (jeu.editeur && jeu.editeur.text) ? jeu.editeur.text : "Retro Classics";
+
+  // Yayın Tarihi
+  let releaseDate = "";
+  if (jeu.dates && jeu.dates.length > 0) {
+    const euDate = jeu.dates.find(d => d && d.region && typeof d.region === 'string' && d.region.toLowerCase() === 'eu');
+    const usDate = jeu.dates.find(d => d && d.region && typeof d.region === 'string' && d.region.toLowerCase() === 'us');
+    const matchedDateObj = euDate || usDate || jeu.dates[0];
+    const rawDate = matchedDateObj ? matchedDateObj.text : "";
+    if (rawDate && rawDate.length >= 4) {
+      releaseDate = rawDate.includes('-') ? rawDate : `${rawDate}-01-01`;
+    }
+  }
+
+  // Oyuncu Sayısı ve Puan
+  let players = "1";
+  if (jeu.joueurs) {
+    if (typeof jeu.joueurs === 'object') {
+      players = jeu.joueurs.text || jeu.joueurs.valeur || jeu.joueurs['#text'] || jeu.joueurs['@nb'] || "1";
+    } else {
+      players = jeu.joueurs.toString();
+    }
+  }
+
+  let rating = "0.80";
+  if (jeu.note && jeu.note.valeur) {
+    rating = (parseFloat(jeu.note.valeur) / 20).toFixed(2);
+  } else if (jeu.note && jeu.note.text) {
+    rating = (parseFloat(jeu.note.text) / 20).toFixed(2);
+  }
+
+  // Medya URL'leri Çöz
+  let boxartUrl = "";
+  let boxartFormat = "png";
+  let videoUrl = "";
+  let videoFormat = "mp4";
+  
+  if (jeu.medias && jeu.medias.length > 0) {
+    const mediaPref = (currentProfile.scraper && currentProfile.scraper.mediaPref) || "mixrbv1";
+    const preferredMedia = jeu.medias.find(m => m && m.type && typeof m.type === 'string' && m.type.toLowerCase() === mediaPref.toLowerCase());
+    
+    if (preferredMedia && preferredMedia.url) {
+      boxartUrl = preferredMedia.url;
+      boxartFormat = preferredMedia.format || "png";
+    } else {
+      const fallbackTypes = ['mixrbv1', 'mixrbv2', 'box-3d', 'box-2d', 'screenshot', 'logo'];
+      for (const type of fallbackTypes) {
+        const matched = jeu.medias.find(m => m && m.type && typeof m.type === 'string' && m.type.toLowerCase() === type);
+        if (matched && matched.url) {
+          boxartUrl = matched.url;
+          boxartFormat = matched.format || "png";
+          break;
+        }
+      }
+      if (!boxartUrl) {
+        const anyMedia = jeu.medias.find(m => m && m.type && typeof m.type === 'string' && m.type.toLowerCase() !== 'video' && m.url);
+        if (anyMedia) {
+          boxartUrl = anyMedia.url;
+          boxartFormat = anyMedia.format || "png";
+        }
+      }
+    }
+
+    const vid = jeu.medias.find(m => m && m.type && typeof m.type === 'string' && m.type.toLowerCase() === 'video');
+    if (vid && vid.url) {
+      videoUrl = vid.url;
+      videoFormat = vid.format || "mp4";
+    }
+  }
+
+  return {
+    id: `ss-${jeu.id || 'game'}`,
+    title: title,
+    system: activeConsole,
+    developer: developer,
+    publisher: publisher,
+    releasedate: releaseDate,
+    genre: genre,
+    players: players,
+    rating: rating,
+    description: desc,
+    image: boxartUrl || consoleData[activeConsole].config.defaultCart,
+    imageFormat: boxartFormat,
+    video: videoUrl,
+    videoFormat: videoFormat
+  };
+}
+
+async function saveSystemDatabaseSilent() {
+  const system = consoleData[activeConsole];
+  if (!system) return;
+  try {
+    if (currentProfile.metadataStorage === 'sqlite') {
+      await writeSqliteDBFile(system);
+    } else {
+      await writeGamelistXMLFile(system);
+    }
+    console.log("Toplu tarama: Veritabanı diske güvenle kaydedildi.");
+  } catch (err) {
+    console.error("Toplu tarama: Veritabanı kaydetme hatası:", err);
+  }
+}
+
+async function processSingleRomSilent(game) {
+  try {
+    // 1. Önce dahili retro veritabanında ara (Dahili Hızlı Çevrimdışı Eşleştirme)
+    let dbMatch = null;
+    const deepClean = (str) => {
+      if (!str) return "";
+      return str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+    };
+
+    const cleanedName = cleanTitleForSearch(game.filename);
+    const deepCleanedFilename = deepClean(cleanedName);
+
+    if (typeof RETRO_GAME_DB !== 'undefined') {
+      dbMatch = RETRO_GAME_DB.find(dbG => {
+        const dbSystem = dbG.system;
+        const targetSystem = activeConsole;
+        const systemMatch = (dbSystem === targetSystem) || 
+                            (dbSystem === 'megadrive' && targetSystem === 'genesis') ||
+                            (dbSystem === 'genesis' && targetSystem === 'megadrive') ||
+                            (dbSystem === 'snes' && targetSystem === 'sfc') ||
+                            (dbSystem === 'sfc' && targetSystem === 'snes') ||
+                            (dbSystem === 'nes' && targetSystem === 'fc') ||
+                            (dbSystem === 'fc' && targetSystem === 'nes') ||
+                            (dbSystem === 'msx' && targetSystem === 'msx2') ||
+                            (dbSystem === 'msx2' && targetSystem === 'msx') ||
+                            (dbSystem === 'wswan' && targetSystem === 'wsc') ||
+                            (dbSystem === 'wsc' && targetSystem === 'wswan') ||
+                            (dbSystem === 'psx' && targetSystem === 'ps1') ||
+                            (dbSystem === 'ps1' && targetSystem === 'psx');
+        if (!systemMatch) return false;
+
+        const deepCleanedTitle = deepClean(dbG.title);
+        const matchTitle = (deepCleanedFilename === deepCleanedTitle);
+        const matchKeyword = dbG.filenameKeywords && dbG.filenameKeywords.some(kw => deepClean(kw) === deepCleanedFilename);
+
+        return matchTitle || matchKeyword;
+      });
+    }
+
+    let match = null;
+    if (dbMatch) {
+      match = dbMatch;
+      console.log(`[Toplu Scrape] Dahili DB Eşleşti: ${game.filename} -> ${dbMatch.title}`);
+    } else {
+      // 2. ScreenScraper API
+      const scraper = currentProfile.scraper;
+      if (!scraper || !scraper.ssid || !scraper.sspassword) {
+        throw new Error("Hesap bilgileri eksik");
+      }
+
+      const ssid = scraper.ssid;
+      const sspassword = scraper.sspassword;
+      const devid = scraper.devid || "retrotool";
+      const devpassword = scraper.devpassword || "devpwd";
+      const systemId = getScreenScraperSystemId(activeConsole);
+
+      // Adım A: Dosya adıyla tam eşleşme ara
+      const targetUrl = `https://www.screenscraper.fr/api2/jeuInfos.php?devid=${devid}&devpassword=${devpassword}&softname=retromgr&ssid=${ssid}&sspassword=${sspassword}&output=json&systemeid=${systemId}&romnom=${encodeURIComponent(game.filename)}`;
+
+      let response = null;
+      try {
+        response = await fetchWithCorsProxy(targetUrl);
+      } catch (e) {
+        console.warn("[Toplu Scrape] Tam eşleşme proxy hatası, metinle aranacak...");
+      }
+
+      // Adım B: Bulunamazsa metin araması yap
+      if (!response || !response.ok) {
+        const cleanQuery = cleanTitleForSearch(game.filename);
+        const searchUrl = `https://www.screenscraper.fr/api2/jeuRecherche.php?devid=${devid}&devpassword=${devpassword}&softname=retromgr&ssid=${ssid}&sspassword=${sspassword}&output=json&recherche=${encodeURIComponent(cleanQuery)}`;
+        response = await fetchWithCorsProxy(searchUrl);
+      }
+
+      if (response && response.ok) {
+        const data = await response.json();
+        if (data.response && data.response.errcode) {
+          const code = data.response.errcode;
+          if (code === 17) throw new Error("API Kotası Aşıldı");
+          throw new Error(`API Hatası (Kod: ${code})`);
+        }
+
+        if (data.response && data.response.jeu) {
+          match = parseScreenScraperJeuBulk(data.response.jeu, game);
+        } else if (data.response && data.response.jeux && Array.isArray(data.response.jeux) && data.response.jeux.length > 0) {
+          match = parseScreenScraperJeuBulk(data.response.jeux[0], game);
+        }
+      }
+    }
+
+    if (match) {
+      // Bulunan metadataları nesneye kaydet
+      game.title = match.title;
+      game.developer = match.developer;
+      game.publisher = match.publisher;
+      game.genre = match.genre;
+      game.releasedate = match.releasedate;
+      game.rating = match.rating;
+      game.players = match.players;
+      game.description = match.description;
+
+      const system = consoleData[activeConsole];
+      const safeTitle = match.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+
+      // Kapak görselini indir ve SD karta yaz
+      let imgWritten = false;
+      let localImgPath = "";
+
+      if (match.image && !match.image.includes('unsplash.com') && match.image !== system.config.defaultCart) {
+        try {
+          const imgResponse = await fetchWithCorsProxy(match.image);
+          if (imgResponse.ok) {
+            const imageBlob = await imgResponse.blob();
+            let imagesHandle = null;
+            let imgExt = match.imageFormat || "png";
+            if (!match.imageFormat && match.image) {
+              const parsedExt = match.image.split('.').pop().split('?')[0];
+              if (parsedExt && parsedExt.length <= 4 && parsedExt.toLowerCase() !== 'php') {
+                imgExt = parsedExt.toLowerCase();
+              }
+            }
+            const imgFilename = `${safeTitle}.${imgExt}`;
+
+            if (currentProfile.paths.imagesLoc === 'root-separate') {
+              const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
+              const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: true });
+              imagesHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
+              localImgPath = `/${cleanImgRoot}/${system.config.id.toUpperCase()}/${imgFilename}`;
+            } else {
+              const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
+              const pathParts = imgDirName.split('/');
+              let currentHandle = system.dirHandle;
+              for (const part of pathParts) {
+                if (part) currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+              }
+              imagesHandle = currentHandle;
+              localImgPath = `./${imgDirName}/${imgFilename}`;
+            }
+
+            const fileHandle = await imagesHandle.getFileHandle(imgFilename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(imageBlob);
+            await writable.close();
+
+            game.image = URL.createObjectURL(imageBlob);
+            game.localImagePath = localImgPath;
+            imgWritten = true;
+          }
+        } catch (imgErr) {
+          console.warn(`[Toplu Scrape] Görsel indirme başarısız (${game.filename}):`, imgErr);
+        }
+      }
+
+      if (!imgWritten && match.image) {
+        game.image = match.image;
+      }
+
+      // Videoyu indir ve SD karta yaz (Eğer video varsa)
+      if (match.video) {
+        try {
+          const vidResponse = await fetchWithCorsProxy(match.video);
+          if (vidResponse.ok) {
+            const videoBlob = await vidResponse.blob();
+            let videosHandle = null;
+            let vidExt = match.videoFormat || "mp4";
+            if (!match.videoFormat && match.video) {
+              const parsedExt = match.video.split('.').pop().split('?')[0];
+              if (parsedExt && parsedExt.length <= 4 && parsedExt.toLowerCase() !== 'php') {
+                vidExt = parsedExt.toLowerCase();
+              }
+            }
+            const vidFilename = `${safeTitle}.${vidExt}`;
+
+            if (currentProfile.paths.imagesLoc === 'root-separate') {
+              const cleanVidRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
+              const vidsRootHandle = await sdCardHandle.getDirectoryHandle(cleanVidRoot, { create: true });
+              videosHandle = await vidsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
+              localVideoPath = `/${cleanVidRoot}/${system.config.id.toUpperCase()}/${vidFilename}`;
+            } else {
+              const vidDirName = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
+              const pathParts = vidDirName.split('/');
+              let currentHandle = system.dirHandle;
+              for (const part of pathParts) {
+                if (part) currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+              }
+              videosHandle = currentHandle;
+              localVideoPath = `./${vidDirName}/${vidFilename}`;
+            }
+
+            const fileHandle = await videosHandle.getFileHandle(vidFilename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(videoBlob);
+            await writable.close();
+
+            game.video = localVideoPath;
+          }
+        } catch (vidErr) {
+          console.warn(`[Toplu Scrape] Video indirme başarısız (${game.filename}):`, vidErr);
+        }
+      }
+
+      return { success: true };
+    } else {
+      return { success: false, error: "Eşleşme bulunamadı" };
+    }
+
+  } catch (err) {
+    console.error(`[Toplu Scrape] İşlem hatası (${game.filename}):`, err);
+    return { success: false, error: err.message || "Bilinmeyen Hata" };
+  }
+}
+
+function startBulkScrape(games) {
+  const scraper = currentProfile.scraper;
+  if (!scraper || !scraper.ssid || !scraper.sspassword) {
+    alert("⚠️ ScreenScraper API'sini kullanabilmek için lütfen sol menüdeki 'Ayarları Düzenle' butonuna basarak 'SCRAPER HESAP AYARLARI' kısmından ScreenScraper.fr kullanıcı adı ve şifrenizi girin.");
+    return;
+  }
+
+  // Prepares state
+  bulkQueue = games;
+  bulkActiveIndex = 0;
+  bulkSuccessCount = 0;
+  bulkFailedCount = 0;
+  isBulkCancelled = false;
+  isBulkRunning = true;
+
+  // Show fullscreen modal
+  const modal = document.getElementById('bulk-scrape-modal');
+  if (modal) modal.style.display = 'flex';
+
+  // Modal controls init
+  const cancelBtn = document.getElementById('btn-bulk-cancel');
+  const closeBtn = document.getElementById('btn-bulk-close');
+  if (cancelBtn) {
+    cancelBtn.style.display = 'block';
+    cancelBtn.disabled = false;
+    cancelBtn.innerHTML = `🛑 İşlemi İptal Et`;
+  }
+  if (closeBtn) closeBtn.style.display = 'none';
+
+  // Initialize stats in UI
+  document.getElementById('bulk-stat-total').innerText = games.length;
+  document.getElementById('bulk-stat-success').innerText = 0;
+  document.getElementById('bulk-stat-failed').innerText = 0;
+  document.getElementById('bulk-stat-remaining').innerText = games.length;
+  document.getElementById('bulk-progress-fill').style.width = '0%';
+  document.getElementById('bulk-progress-percent').innerText = '0%';
+  document.getElementById('bulk-active-title').innerText = "Hazırlanıyor, kuyruk sıraya diziliyor...";
+
+  // Render list queue
+  const listContainer = document.getElementById('bulk-scrape-list');
+  if (listContainer) {
+    listContainer.innerHTML = '';
+    games.forEach((game, idx) => {
+      const item = document.createElement('div');
+      item.className = 'bulk-queue-item status-pending';
+      item.id = `bulk-item-${idx}`;
+      item.innerHTML = `
+        <span class="bulk-item-name" title="${game.filename}">${game.filename}</span>
+        <span class="bulk-item-status-badge">Bekliyor</span>
+      `;
+      listContainer.appendChild(item);
+    });
+  }
+
+  // Run the loop asynchronously
+  setTimeout(runBulkScrapeQueue, 500);
+}
+
+async function runBulkScrapeQueue() {
+  const cancelBtn = document.getElementById('btn-bulk-cancel');
+  const closeBtn = document.getElementById('btn-bulk-close');
+
+  for (let i = 0; i < bulkQueue.length; i++) {
+    if (isBulkCancelled) {
+      break;
+    }
+
+    bulkActiveIndex = i;
+    const game = bulkQueue[i];
+
+    // Update UI Stats
+    document.getElementById('bulk-stat-remaining').innerText = bulkQueue.length - i;
+    const percent = Math.round((i / bulkQueue.length) * 100);
+    document.getElementById('bulk-progress-fill').style.width = `${percent}%`;
+    document.getElementById('bulk-progress-percent').innerText = `${percent}%`;
+    document.getElementById('bulk-active-title').innerText = `🔍 Taranıyor: ${game.filename}`;
+
+    // Get Row element
+    const rowEl = document.getElementById(`bulk-item-${i}`);
+    if (rowEl) {
+      rowEl.className = 'bulk-queue-item status-active';
+      const badge = rowEl.querySelector('.bulk-item-status-badge');
+      if (badge) badge.innerText = 'Aktif';
+      rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // Call scrape action
+    const result = await processSingleRomSilent(game);
+
+    if (result.success) {
+      bulkSuccessCount++;
+      document.getElementById('bulk-stat-success').innerText = bulkSuccessCount;
+      if (rowEl) {
+        rowEl.className = 'bulk-queue-item status-success';
+        const badge = rowEl.querySelector('.bulk-item-status-badge');
+        if (badge) badge.innerText = 'Başarılı';
+      }
+
+      // Batch save database every 10 successful scrapes
+      if (bulkSuccessCount % 10 === 0) {
+        await saveSystemDatabaseSilent();
+      }
+    } else {
+      bulkFailedCount++;
+      document.getElementById('bulk-stat-failed').innerText = bulkFailedCount;
+      if (rowEl) {
+        rowEl.className = 'bulk-queue-item status-failed';
+        const badge = rowEl.querySelector('.bulk-item-status-badge');
+        if (badge) badge.innerText = result.error || 'Atlandı';
+        rowEl.title = `Başarısız: ${result.error || 'Uyumlu eşleşme bulunamadı'}`;
+      }
+    }
+
+    // Politely wait for 400ms to avoid overwhelming public proxies and ScreenScraper API
+    await new Promise(resolve => setTimeout(resolve, 400));
+  }
+
+  // Final database write
+  await saveSystemDatabaseSilent();
+
+  // Finalize UI State
+  isBulkRunning = false;
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  if (closeBtn) closeBtn.style.display = 'block';
+
+  // Set 100% on progress bar
+  document.getElementById('bulk-progress-fill').style.width = '100%';
+  document.getElementById('bulk-progress-percent').innerText = '100%';
+  document.getElementById('bulk-stat-remaining').innerText = 0;
+
+  if (isBulkCancelled) {
+    document.getElementById('bulk-active-title').innerText = `🛑 Toplu tarama kullanıcı tarafından iptal edildi! (${bulkSuccessCount} başarılı, ${bulkFailedCount} başarısız)`;
+    showToast("Toplu tarama iptal edildi. İndirilenler kaydedildi!", "warning");
+  } else {
+    document.getElementById('bulk-active-title').innerText = `✨ Toplu tarama başarıyla tamamlandı! (${bulkSuccessCount} başarılı, ${bulkFailedCount} başarısız)`;
+    showToast("Toplu tarama işlemi başarıyla tamamlandı!", "success");
+  }
+
+  // Reset selected ROMs
+  selectedRomsBulk = [];
+  updateBulkActionBarUI();
 }
 
 // --- Select Manual Cover Image File from computer ---
