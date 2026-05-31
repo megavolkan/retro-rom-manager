@@ -4069,6 +4069,16 @@ function startBulkScrape(games) {
   isBulkCancelled = false;
   isBulkRunning = true;
 
+  // Disable buttons in the bulk action bar during scrape
+  const btnDelete = document.getElementById('btn-bulk-delete');
+  const btnScrape = document.getElementById('btn-bulk-scrape-selected');
+  const btnSelectAll = document.getElementById('btn-bulk-select-all');
+  const btnDeselect = document.getElementById('btn-bulk-deselect');
+  if (btnDelete) btnDelete.disabled = true;
+  if (btnScrape) btnScrape.disabled = true;
+  if (btnSelectAll) btnSelectAll.disabled = true;
+  if (btnDeselect) btnDeselect.disabled = true;
+
   // Show fullscreen modal
   const modal = document.getElementById('bulk-scrape-modal');
   if (modal) modal.style.display = 'flex';
@@ -4986,6 +4996,16 @@ function updateBulkActionBarUI() {
   if (selectedRomsBulk.length > 0) {
     if (countEl) countEl.textContent = selectedRomsBulk.length;
     bar.style.display = 'flex';
+    
+    // Enable buttons when bar is rendered
+    const btnDelete = document.getElementById('btn-bulk-delete');
+    const btnScrape = document.getElementById('btn-bulk-scrape-selected');
+    const btnSelectAll = document.getElementById('btn-bulk-select-all');
+    const btnDeselect = document.getElementById('btn-bulk-deselect');
+    if (btnDelete) btnDelete.disabled = false;
+    if (btnScrape) btnScrape.disabled = false;
+    if (btnSelectAll) btnSelectAll.disabled = false;
+    if (btnDeselect) btnDeselect.disabled = false;
   } else {
     bar.style.display = 'none';
   }
@@ -5252,6 +5272,16 @@ async function deleteBulkRoms() {
   const count = selectedRomsBulk.length;
   const confirmation = confirm(`Seçilen ${count} adet oyunu ve SD karttaki tüm ilişkili medya dosyalarını (görseller, videolar vb.) KALICI olarak silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!`);
   if (!confirmation) return;
+
+  // Disable buttons in the bulk action bar during deletion
+  const btnDelete = document.getElementById('btn-bulk-delete');
+  const btnScrape = document.getElementById('btn-bulk-scrape-selected');
+  const btnSelectAll = document.getElementById('btn-bulk-select-all');
+  const btnDeselect = document.getElementById('btn-bulk-deselect');
+  if (btnDelete) btnDelete.disabled = true;
+  if (btnScrape) btnScrape.disabled = true;
+  if (btnSelectAll) btnSelectAll.disabled = true;
+  if (btnDeselect) btnDeselect.disabled = true;
 
   // Yükleniyor overlay gösterimi
   const container = document.getElementById('game-grid-container');
