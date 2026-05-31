@@ -39,6 +39,141 @@ const KEY_NAME = 'last_sd_card';
 const DB_VERSION = 2;
 const CACHE_STORE_NAME = 'games_cache';
 
+// --- Logger State & Utility (v1.9.0) ---
+let loggerSessionLogs = [];
+const LOGGER_MAX_LIMIT = 1000;
+let logWriteTimeout = null;
+
+const Logger = {
+  enabled: false,
+
+  init() {
+    // Load enabled state from localStorage or default to false
+    this.enabled = localStorage.getItem('rrm_logger_enabled') === 'true';
+    const chk = document.getElementById('chk-enable-logger');
+    if (chk) {
+      chk.checked = this.enabled;
+    }
+    this.updatePanelVisibility();
+  },
+
+  updatePanelVisibility() {
+    const panel = document.getElementById('log-panel');
+    const expandBtn = document.getElementById('btn-expand-logs');
+    if (!panel || !expandBtn) return;
+    
+    if (this.enabled) {
+      // Check if collapsed
+      const isCollapsed = localStorage.getItem('rrm_logs_collapsed') === 'true';
+      if (isCollapsed) {
+        panel.style.display = 'none';
+        expandBtn.style.display = 'flex';
+      } else {
+        panel.style.display = 'flex';
+        expandBtn.style.display = 'none';
+        this.scrollToBottom();
+      }
+    } else {
+      panel.style.display = 'none';
+      expandBtn.style.display = 'none';
+    }
+  },
+
+  log(message, level = 'info') {
+    const timestamp = new Date().toLocaleTimeString('tr-TR', { hour12: false });
+    const logEntry = { timestamp, message, level };
+    
+    // Add to memory
+    loggerSessionLogs.push(logEntry);
+    if (loggerSessionLogs.length > LOGGER_MAX_LIMIT) {
+      loggerSessionLogs.shift();
+    }
+
+    // Output to real browser console as well
+    const consoleMsg = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+    if (level === 'error') console.error(consoleMsg);
+    else if (level === 'warn') console.warn(consoleMsg);
+    else console.log(consoleMsg);
+
+    // Render in UI if enabled
+    if (this.enabled) {
+      this.appendLogToUI(logEntry);
+    }
+
+    // Write to disk
+    this.writeLogFileDebounced();
+  },
+
+  info(msg) { this.log(msg, 'info'); },
+  success(msg) { this.log(msg, 'success'); },
+  warn(msg) { this.log(msg, 'warn'); },
+  error(msg) { this.log(msg, 'error'); },
+
+  appendLogToUI(logEntry) {
+    const body = document.getElementById('log-panel-body');
+    if (!body) return;
+
+    const line = document.createElement('div');
+    line.className = `log-line log-${logEntry.level}`;
+    
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'log-timestamp';
+    timeSpan.textContent = `[${logEntry.timestamp}]`;
+    
+    const contentSpan = document.createElement('span');
+    contentSpan.className = 'log-content';
+    contentSpan.textContent = logEntry.message;
+
+    line.appendChild(timeSpan);
+    line.appendChild(contentSpan);
+    body.appendChild(line);
+
+    // Auto scroll
+    this.scrollToBottom();
+  },
+
+  scrollToBottom() {
+    const body = document.getElementById('log-panel-body');
+    if (body) {
+      body.scrollTop = body.scrollHeight;
+    }
+  },
+
+  clear() {
+    loggerSessionLogs = [];
+    const body = document.getElementById('log-panel-body');
+    if (body) body.innerHTML = '';
+    this.info("Oturum günlüğü temizlendi.");
+  },
+
+  writeLogFileDebounced() {
+    if (!sdCardHandle) return; // Need loaded SD card to write file
+    
+    // Debounce to prevent massive write overhead
+    if (logWriteTimeout) clearTimeout(logWriteTimeout);
+    logWriteTimeout = setTimeout(() => {
+      this.writeLogFile();
+    }, 1000);
+  },
+
+  async writeLogFile() {
+    if (!sdCardHandle) return;
+    try {
+      const fileHandle = await sdCardHandle.getFileHandle('retromgr.log', { create: true });
+      const writable = await fileHandle.createWritable();
+      
+      const fileContent = loggerSessionLogs
+        .map(l => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`)
+        .join('\n');
+        
+      await writable.write(fileContent);
+      await writable.close();
+    } catch (err) {
+      console.error("Logger: retromgr.log yazma hatası:", err);
+    }
+  }
+};
+
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -753,6 +888,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // Initialize UI Bindings
   initUIBindings();
 
+  // Initialize Logger Module
+  Logger.init();
+
   // Check and prepare quick reconnect
   checkAndPrepareReconnect();
 
@@ -779,6 +917,7 @@ async function checkAndPrepareReconnect() {
   try {
     const savedHandle = await loadSDCardHandle();
     if (savedHandle) {
+      Logger.info(`Hızlı bağlanmak için kayıtlı SD kart bulundu: ${savedHandle.name}`);
       const reconnectBtn = document.getElementById('btn-reconnect-sd');
       if (reconnectBtn) {
         reconnectBtn.style.display = 'block';
@@ -787,11 +926,13 @@ async function checkAndPrepareReconnect() {
         reconnectBtn.addEventListener('click', async () => {
           reconnectBtn.disabled = true;
           reconnectBtn.textContent = `🔌 Bağlanıyor...`;
+          Logger.info(`Kayıtlı SD karta hızlı bağlantı isteği gönderildi: ${savedHandle.name}`);
           
           try {
             const permission = await savedHandle.requestPermission({ mode: 'readwrite' });
             if (permission === 'granted') {
               sdCardHandle = savedHandle;
+              Logger.success(`Hızlı bağlantı izni verildi, kart yükleniyor: ${savedHandle.name}`);
               
               // Update Status Indicator
               const indicator = document.getElementById('workspace-indicator');
@@ -804,10 +945,12 @@ async function checkAndPrepareReconnect() {
               await initWorkspaceFromHandle();
               reconnectBtn.style.display = 'none';
             } else {
+              Logger.warn("Hızlı bağlantı izni kullanıcı tarafından reddedildi.");
               reconnectBtn.disabled = false;
               reconnectBtn.textContent = `🔌 TEKRAR DENE: ${savedHandle.name.toUpperCase()}`;
             }
           } catch (err) {
+            Logger.error(`Hızlı bağlantı izni alınamadı: ${err.message}`);
             console.error("Yeniden bağlanma izni alınamadı:", err);
             await clearSDCardHandle();
             reconnectBtn.style.display = 'none';
@@ -1069,6 +1212,9 @@ function initUIBindings() {
         // Populate Auto Reconnect Preference
         document.getElementById('chk-auto-reconnect').checked = currentProfile.autoReconnect !== false;
 
+        // Populate Logger Preference
+        document.getElementById('chk-enable-logger').checked = currentProfile.enableLogger === true;
+
         // Show delete button since profile exists
         if (deleteProfileBtn) deleteProfileBtn.style.display = 'block';
 
@@ -1260,6 +1406,61 @@ function initUIBindings() {
       showToast("Kullanım koşulları kabul edildi!", "success");
     });
   }
+
+  // --- Logger Event Listeners (v1.9.0) ---
+  const logPanel = document.getElementById('log-panel');
+  const resizer = document.getElementById('log-panel-resizer');
+  if (resizer && logPanel) {
+    // Restore saved height
+    const savedHeight = localStorage.getItem('rrm_logs_height') || '220px';
+    logPanel.style.height = savedHeight;
+
+    let startY, startHeight;
+    const doDrag = (e) => {
+      let newHeight = startHeight - (e.clientY - startY);
+      const minHeight = 80;
+      const maxHeight = window.innerHeight * 0.5; // Max 50% of viewport height
+      if (newHeight < minHeight) newHeight = minHeight;
+      if (newHeight > maxHeight) newHeight = maxHeight;
+      logPanel.style.height = `${newHeight}px`;
+      localStorage.setItem('rrm_logs_height', `${newHeight}px`);
+    };
+    const stopDrag = () => {
+      document.removeEventListener('mousemove', doDrag);
+      document.removeEventListener('mouseup', stopDrag);
+      Logger.scrollToBottom();
+    };
+    resizer.addEventListener('mousedown', (e) => {
+      startY = e.clientY;
+      startHeight = parseInt(document.defaultView.getComputedStyle(logPanel).height, 10);
+      document.addEventListener('mousemove', doDrag);
+      document.addEventListener('mouseup', stopDrag);
+      e.preventDefault();
+    });
+  }
+
+  const btnClearLogs = document.getElementById('btn-clear-logs');
+  if (btnClearLogs) {
+    btnClearLogs.addEventListener('click', () => {
+      Logger.clear();
+    });
+  }
+
+  const btnCollapseLogs = document.getElementById('btn-collapse-logs');
+  if (btnCollapseLogs) {
+    btnCollapseLogs.addEventListener('click', () => {
+      localStorage.setItem('rrm_logs_collapsed', 'true');
+      Logger.updatePanelVisibility();
+    });
+  }
+
+  const btnExpandLogs = document.getElementById('btn-expand-logs');
+  if (btnExpandLogs) {
+    btnExpandLogs.addEventListener('click', () => {
+      localStorage.setItem('rrm_logs_collapsed', 'false');
+      Logger.updatePanelVisibility();
+    });
+  }
 }
 
 // --- Update Advanced Folder Paths Default Inputs ---
@@ -1305,6 +1506,8 @@ async function selectSDCardWorkspace() {
       mode: 'readwrite'
     });
 
+    Logger.success("SD Kart başarıyla seçildi: " + sdCardHandle.name);
+
     // Update Status Indicator
     const indicator = document.getElementById('workspace-indicator');
     const folderPathEl = document.getElementById('workspace-folder-path');
@@ -1328,6 +1531,7 @@ async function selectSDCardWorkspace() {
     await initWorkspaceFromHandle();
 
   } catch (err) {
+    Logger.error("Dizin erişim hatası: " + err.message);
     console.error("Dizin erişim hatası:", err);
     showScanProgressModal(false);
   }
@@ -1343,17 +1547,29 @@ async function initWorkspaceFromHandle() {
     const text = await file.text();
     currentProfile = JSON.parse(text);
     rrmasExists = true;
-    console.log("Mevcut cihaz profili yüklendi:", currentProfile.cardName);
+    Logger.success("Cihaz profili başarıyla yüklendi: " + currentProfile.cardName);
+
+    // Load logger preference
+    if (currentProfile.enableLogger === true) {
+      Logger.enabled = true;
+      localStorage.setItem('rrm_logger_enabled', 'true');
+    } else {
+      Logger.enabled = false;
+      localStorage.setItem('rrm_logger_enabled', 'false');
+    }
+    Logger.updatePanelVisibility();
 
     // Auto-accept EULA in localStorage if it was already accepted on this SD card (.rrmas)
     if (currentProfile.eulaAccepted === true) {
       localStorage.setItem('rrm_eula_accepted', 'true');
+      Logger.info("EULA Kullanım Koşulları önceden onaylanmış.");
       const eulaModal = document.getElementById('eula-modal');
       if (eulaModal) {
         eulaModal.classList.remove('active');
       }
     }
   } catch(err) {
+    Logger.warn(".rrmas profil dosyası bulunamadı, profil oluşturucu penceresi açılıyor.");
     console.log(".rrmas profil dosyası bulunamadı, profil oluşturucu açılıyor.");
   }
 
@@ -1517,7 +1733,17 @@ async function saveDeviceProfileAndStart() {
     mediaPref: document.getElementById('inp-scraper-media').value
   };
 
-  // Ensure eula status is saved to profile
+  // Save Logger preference
+  const enableLoggerVal = document.getElementById('chk-enable-logger').checked;
+  currentProfile.enableLogger = enableLoggerVal;
+  localStorage.setItem('rrm_logger_enabled', enableLoggerVal ? 'true' : 'false');
+  Logger.enabled = enableLoggerVal;
+  Logger.updatePanelVisibility();
+  if (enableLoggerVal) {
+    Logger.info("Canlı Sistem Log Penceresi etkinleştirildi.");
+  }
+
+  // Save EULA acceptance
   currentProfile.eulaAccepted = localStorage.getItem('rrm_eula_accepted') === 'true';
 
   // Save .rrmas file in SD Card root folder
@@ -1571,6 +1797,7 @@ function updateProfileBadgeUI() {
 
 // --- Recursively Scan SD Card Folders (Lazy Scanning) ---
 async function scanSDCardDirectories() {
+  Logger.info("SD Kart dizinleri taranıyor...");
   consoleData = {};
   
   // Set up blank structure for all consoles
@@ -1594,8 +1821,10 @@ async function scanSDCardDirectories() {
   if (currentProfile.paths.romsRoot) {
     try {
       romsRootHandle = await sdCardHandle.getDirectoryHandle(currentProfile.paths.romsRoot, { create: false });
+      Logger.info(`ROMs ana klasörüne erişildi: /${currentProfile.paths.romsRoot}`);
       console.log(`ROMs ana klasörüne erişildi: /${currentProfile.paths.romsRoot}`);
     } catch (err) {
+      Logger.warn(`ROMs ana klasörü bulunamadı: ${currentProfile.paths.romsRoot}. Kök dizin kullanılacak.`);
       console.warn(`ROMs ana klasörü bulunamadı: ${currentProfile.paths.romsRoot}. Kök klasörden aranıyor.`);
       romsRootHandle = sdCardHandle;
     }
@@ -1640,18 +1869,21 @@ async function scanSDCardDirectories() {
       
       // Çakışma Önleme: Eğer bu konsol için zaten bir klasör taranmışsa, ikinciyi atla!
       if (system.dirHandle !== null) {
+        Logger.warn(`[Çakışma Önleme] "${system.config.displayName}" için zaten "/${system.dirHandle.name}" klasörü taranmıştı. Eşleşen "/${dirEntry.name}" klasörü atlanıyor.`);
         console.warn(`[Çakışma Önleme] "${matchedConsoleKey}" sistemi için zaten "/${system.dirHandle.name}" klasörü taranmıştı. İkinci eşleşen "/${dirEntry.name}" klasörü atlanıyor.`);
         continue;
       }
 
       system.dirHandle = dirEntry;
       system.isFullyLoaded = false;
+      Logger.info(`Konsol klasörü bulundu: /${dirEntry.name} (${system.config.displayName})`);
 
       // Load games list from IndexedDB cache to populate badges instantly
       try {
         const cachedGames = await loadGamesCache(matchedConsoleKey);
         if (cachedGames && Array.isArray(cachedGames)) {
           system.games = cachedGames;
+          Logger.info(`[Önbellek] '${system.config.displayName}' için ${cachedGames.length} oyun IndexedDB'den yüklendi.`);
           console.log(`[IndexedDB Cache] '${matchedConsoleKey}' için ${cachedGames.length} oyun önbellekten yüklendi.`);
         }
       } catch (cacheErr) {
@@ -1667,6 +1899,9 @@ async function scanSDCardDirectories() {
       delete consoleData[key];
     }
   }
+
+  const totalFoundConsoles = Object.keys(consoleData).length;
+  Logger.success(`Dizin taraması tamamlandı. Toplam ${totalFoundConsoles} aktif konsol listelendi.`);
 
   // Render Sidebar
   renderSidebarConsoles();
@@ -1712,6 +1947,8 @@ async function loadOrCreateGamelistXML(system) {
   let xmlFileHandle = null;
   let xmlText = "";
 
+  Logger.info(`${system.config.displayName} sistemi için gamelist.xml yükleniyor...`);
+
   try {
     // Try to open existing gamelist.xml
     xmlFileHandle = await dirHandle.getFileHandle('gamelist.xml', { create: false });
@@ -1720,6 +1957,7 @@ async function loadOrCreateGamelistXML(system) {
     system.xmlFileHandle = xmlFileHandle;
   } catch (err) {
     // gamelist.xml does not exist, we'll create it later when saving
+    Logger.info(`${system.config.displayName} için gamelist.xml bulunamadı, sıfırdan oluşturulacak.`);
     console.log(`${system.config.displayName} için gamelist.xml bulunamadı, yeni bir tane oluşturulacak.`);
     system.gamelistXML = new DOMParser().parseFromString('<?xml version="1.0"?><gameList></gameList>', 'text/xml');
     
@@ -1771,7 +2009,9 @@ async function loadOrCreateGamelistXML(system) {
         }
       }
     }
+    Logger.success(`${system.config.displayName} için gamelist.xml başarıyla yüklendi.`);
   } catch (err) {
+    Logger.error(`${system.config.displayName} için XML ayrıştırma hatası: ${err.message}`);
     console.error("XML ayrıştırma hatası:", err);
     system.gamelistXML = new DOMParser().parseFromString('<?xml version="1.0"?><gameList></gameList>', 'text/xml');
   }
@@ -3012,6 +3252,7 @@ async function writeGamelistXMLFile(system) {
   xmlString = formatXmlString(xmlString);
 
   // Write to File System API
+  Logger.info(`gamelist.xml dosyası diske yazılıyor: ${system.config.displayName}`);
   try {
     let fileHandle = system.xmlFileHandle;
     if (!fileHandle) {
@@ -3022,6 +3263,8 @@ async function writeGamelistXMLFile(system) {
     const writable = await fileHandle.createWritable();
     await writable.write(xmlString);
     await writable.close();
+
+    Logger.success(`gamelist.xml dosyası başarıyla diske yazıldı: ${system.config.displayName}`);
 
     // Update local IndexedDB cache
     let consoleKey = null;
@@ -3036,6 +3279,7 @@ async function writeGamelistXMLFile(system) {
       console.log(`[IndexedDB Cache] '${consoleKey}' için önbellek güncellendi (XML kaydı sonrası).`);
     }
   } catch (err) {
+    Logger.error(`gamelist.xml yazma hatası: ${err.message}`);
     console.error("XML yazma hatası:", err);
     alert("gamelist.xml dosyası kaydedilemedi! Lütfen yazma izinlerinizi kontrol edin.");
   }
@@ -3352,6 +3596,8 @@ function parseScreenScraperJeu(jeu) {
 async function triggerOnlineScrape(forceOnline = false) {
   if (!selectedRom || !activeConsole) return;
 
+  Logger.info(`Çevrimiçi/çevrimdışı scrape başlatıldı: ${selectedRom.filename}`);
+
   const btn = document.getElementById('btn-scrape-online');
   const originalText = btn.innerHTML;
   btn.disabled = true;
@@ -3400,6 +3646,7 @@ async function triggerOnlineScrape(forceOnline = false) {
 
     // Eşleşme bulunduysa anında göster
     if (dbMatch) {
+      Logger.success(`Çevrimdışı dahili veritabanında eşleşme bulundu: ${dbMatch.title}`);
       setTimeout(() => {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -3430,6 +3677,7 @@ async function triggerOnlineScrape(forceOnline = false) {
     let response = null;
     let fallbackUsed = false;
     
+    Logger.info("[Scraper] ScreenScraper tam dosya adı (romnom) sorgusu gönderiliyor...");
     try {
       response = await fetchWithCorsProxy(targetUrl);
     } catch (fetchErr) {
@@ -3439,6 +3687,7 @@ async function triggerOnlineScrape(forceOnline = false) {
     // Adım B: Eğer tam dosya adı bulunamadıysa (veya proxy hatası alındıysa), metin araması yap (jeuRecherche.php)
     if (!response || !response.ok) {
       const cleanQuery = cleanTitleForSearch(selectedRom.filename);
+      Logger.warn(`[Scraper] Dosya adı tam eşleşmedi. Arama terimiyle sorgulanıyor: "${cleanQuery}"`);
       console.log(`[Scraper Fallback] "${selectedRom.filename}" tam eşleşmedi. Metinle aranıyor: "${cleanQuery}"`);
       const searchUrl = `https://www.screenscraper.fr/api2/jeuRecherche.php?devid=${devid}&devpassword=${devpassword}&softname=retromgr&ssid=${ssid}&sspassword=${sspassword}&output=json&recherche=${encodeURIComponent(cleanQuery)}`;
       
@@ -3447,6 +3696,7 @@ async function triggerOnlineScrape(forceOnline = false) {
         response = await fetchWithCorsProxy(searchUrl);
         fallbackUsed = true;
       } catch (fallbackErr) {
+        Logger.error(`[Scraper] Metin araması da başarısız oldu: ${fallbackErr.message}`);
         console.error("Text search fallback also failed:", fallbackErr);
         throw new Error("ROM dosyası veya temizlenmiş ismi ScreenScraper sunucusunda bulunamadı.");
       }
@@ -3458,6 +3708,7 @@ async function triggerOnlineScrape(forceOnline = false) {
       // API Hatası Kontrolü (Kotanın aşılması veya hatalı kimlik)
       if (data.response && data.response.errcode) {
         const err = data.response.errcode;
+        Logger.error(`[Scraper] ScreenScraper API hatası: Kod ${err}`);
         if (err === 1 || err === 2 || err === 3) {
           alert(`⚠️ ScreenScraper Kimlik Hatası: Girdiğiniz kullanıcı adı veya şifre yanlış!\n\nLütfen sol paneldeki profil ayarlarından hesap bilgilerinizi düzeltin.`);
         } else if (err === 17) {
@@ -3485,17 +3736,20 @@ async function triggerOnlineScrape(forceOnline = false) {
       }
 
       if (matches.length > 0) {
+        Logger.success(`[Scraper] Eşleşen kayıtlar bulundu. Aday sayısı: ${matches.length}`);
         btn.disabled = false;
         btn.innerHTML = originalText;
         presentScrapeMatches(matches);
         return;
       } else {
+        Logger.warn("[Scraper] Eşleşen oyun kaydı bulunamadı.");
         alert("🔍 ScreenScraper veritabanında bu ROM dosyasına veya arama kelimesine ait hiçbir kayıt bulunamadı!");
       }
     } else {
       throw new Error("Sunucu bağlantı hatası veya geçersiz CORS Proxy yanıtı.");
     }
   } catch (err) {
+    Logger.error(`[Scraper] İstek başarısız oldu: ${err.message || err}`);
     console.error("Online scraper hatası:", err);
     alert(`⚠️ İnternetten scrape etme isteği başarısız oldu!\n\nHata Detayı: ${err.message || err}\n\nLütfen internet bağlantınızı, CORS Proxy durumunu veya yerel PHP sunucunuzu kontrol edin.`);
   }
@@ -4155,6 +4409,8 @@ function startBulkScrape(games) {
     return;
   }
 
+  Logger.info(`Toplu tarama işlemi başlatılıyor. Toplam oyun adedi: ${games.length}`);
+
   // Prepares state
   bulkQueue = games;
   bulkActiveIndex = 0;
@@ -4234,6 +4490,7 @@ async function runBulkScrapeQueue() {
     document.getElementById('bulk-progress-fill').style.width = `${percent}%`;
     document.getElementById('bulk-progress-percent').innerText = `${percent}%`;
     document.getElementById('bulk-active-title').innerText = `🔍 Taranıyor: ${game.filename}`;
+    Logger.info(`[Toplu Scrape] [${i+1}/${bulkQueue.length}] "${game.filename}" sorgulanıyor...`);
 
     // Get Row element
     const rowEl = document.getElementById(`bulk-item-${i}`);
@@ -4249,6 +4506,7 @@ async function runBulkScrapeQueue() {
 
     if (result.success) {
       bulkSuccessCount++;
+      Logger.success(`[Toplu Scrape] Eşleşme başarılı: "${game.title}"`);
       document.getElementById('bulk-stat-success').innerText = bulkSuccessCount;
       if (rowEl) {
         rowEl.className = 'bulk-queue-item status-success';
@@ -4262,6 +4520,7 @@ async function runBulkScrapeQueue() {
       }
     } else {
       bulkFailedCount++;
+      Logger.warn(`[Toplu Scrape] Eşleşme başarısız veya atlandı: "${game.filename}" (Hata: ${result.error || 'Uyumlu eşleşme bulunamadı'})`);
       document.getElementById('bulk-stat-failed').innerText = bulkFailedCount;
       if (rowEl) {
         rowEl.className = 'bulk-queue-item status-failed';
@@ -4289,9 +4548,11 @@ async function runBulkScrapeQueue() {
   document.getElementById('bulk-stat-remaining').innerText = 0;
 
   if (isBulkCancelled) {
+    Logger.warn(`[Toplu Scrape] Kullanıcı tarafından iptal edildi! (${bulkSuccessCount} başarılı, ${bulkFailedCount} başarısız)`);
     document.getElementById('bulk-active-title').innerText = `🛑 Toplu tarama kullanıcı tarafından iptal edildi! (${bulkSuccessCount} başarılı, ${bulkFailedCount} başarısız)`;
     showToast("Toplu tarama iptal edildi. İndirilenler kaydedildi!", "warning");
   } else {
+    Logger.success(`[Toplu Scrape] Tamamlandı! (${bulkSuccessCount} başarılı, ${bulkFailedCount} başarısız)`);
     document.getElementById('bulk-active-title').innerText = `✨ Toplu tarama başarıyla tamamlandı! (${bulkSuccessCount} başarılı, ${bulkFailedCount} başarısız)`;
     showToast("Toplu tarama işlemi başarıyla tamamlandı!", "success");
   }
@@ -4688,12 +4949,16 @@ async function tryLoadOrCreateSqliteDB(system) {
   let dbFileHandle = null;
   let arrayBuffer = null;
   
+  Logger.info(`SQLite veritabanı yükleniyor: ${system.config.displayName} (${dbFilename})...`);
+
   try {
     dbFileHandle = await dirHandle.getFileHandle(dbFilename, { create: false });
     const file = await dbFileHandle.getFile();
     arrayBuffer = await file.arrayBuffer();
+    Logger.success(`Mevcut SQLite veritabanı bulundu ve yüklendi: ${dbFilename}`);
     console.log(`Mevcut SQLite veritabanı bulundu ve yüklendi: ${dbFilename}`);
   } catch (err) {
+    Logger.info(`Veritabanı dosyası (${dbFilename}) bulunamadı. Yeni bir tane oluşturuluyor.`);
     console.log(`Veritabanı dosyası (${dbFilename}) bulunamadı. Yeni bir tane oluşturuluyor.`);
   }
   
@@ -4706,6 +4971,7 @@ async function tryLoadOrCreateSqliteDB(system) {
     try {
       db = new window.SQL.Database(new Uint8Array(arrayBuffer));
     } catch (parseErr) {
+      Logger.error(`Veritabanı ayrıştırılamadı, yeni bir tane oluşturuluyor: ${parseErr.message}`);
       console.error("Veritabanı ayrıştırılamadı, yeni bir tane oluşturuluyor:", parseErr);
     }
   }
@@ -4726,6 +4992,7 @@ async function tryLoadOrCreateSqliteDB(system) {
     
     const createTableSql = `CREATE TABLE "${tableName}" (${columnsDef.join(', ')})`;
     db.run(createTableSql);
+    Logger.success(`Yeni SQLite veritabanı ve "${tableName}" tablosu başarıyla oluşturuldu.`);
     console.log(`Yeni SQLite veritabanı ve "${tableName}" tablosu başarıyla oluşturuldu.`);
   }
   
@@ -4906,13 +5173,8 @@ async function writeSqliteDBFile(system) {
   
   const binaryData = db.export();
   
+  Logger.info(`SQLite veritabanı diske yazılıyor: ${dbFilename}`);
   try {
-    const pattern = currentProfile.sqliteConfig.pattern || "{SYSTEM}_cache7.db";
-    const sysId = system.config.id;
-    const sysFolder = system.dirHandle.name;
-    const dbFilename = pattern.replace(/{SYSTEM}/g, sysFolder).replace(/{system}/g, sysId);
-    const dirHandle = system.dirHandle;
-    
     try {
       const origFileHandle = await dirHandle.getFileHandle(dbFilename, { create: false });
       const origFile = await origFileHandle.getFile();
@@ -4921,6 +5183,7 @@ async function writeSqliteDBFile(system) {
       const backupWritable = await backupFileHandle.createWritable();
       await backupWritable.write(origFile);
       await backupWritable.close();
+      Logger.info(`Yedek veritabanı başarıyla oluşturuldu: ${dbFilename}.bak`);
       console.log(`Yedek veritabanı başarıyla oluşturuldu: ${dbFilename}.bak`);
     } catch (backupErr) {
       console.warn("Veritabanı yedeği oluşturulamadı veya dosya ilk kez yaratılıyor:", backupErr);
@@ -4930,6 +5193,7 @@ async function writeSqliteDBFile(system) {
     const writable = await fileHandle.createWritable();
     await writable.write(binaryData);
     await writable.close();
+    Logger.success(`SQLite veritabanı başarıyla dosyaya yazıldı: ${dbFilename}`);
     console.log(`SQLite veritabanı başarıyla dosyaya yazıldı: ${dbFilename}`);
     
     // Update local IndexedDB cache
@@ -4945,6 +5209,7 @@ async function writeSqliteDBFile(system) {
       console.log(`[IndexedDB Cache] '${consoleKey}' için önbellek güncellendi (SQLite kaydı sonrası).`);
     }
   } catch (writeErr) {
+    Logger.error(`SQLite veritabanı yazma hatası: ${writeErr.message}`);
     console.error("SQLite veritabanı yazma hatası:", writeErr);
     alert("Hata: SQLite veritabanı dosyasına yazılamadı! Lütfen disk izinlerinizi kontrol edin.");
     throw writeErr;
@@ -5295,9 +5560,11 @@ async function deleteSingleRom(game) {
   const confirmation = confirm(`"${game.title}" oyununu ve SD karttaki tüm ilişkili medya dosyalarını (görseller, videolar vb.) KALICI olarak silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!`);
   if (!confirmation) return;
 
+  Logger.info(`Oyun silme işlemi başlatıldı: ${game.filename} (${game.title})`);
   try {
     // 1. ROM Dosyasını Sil
     await system.dirHandle.removeEntry(game.filename);
+    Logger.info(`ROM dosyası silindi: ${game.filename}`);
     console.log(`ROM dosyası silindi: ${game.filename}`);
 
     // 2. İlişkili Medyaları Temizle
@@ -5327,6 +5594,7 @@ async function deleteSingleRom(game) {
         }
         await writeSqliteDBFile(system);
       } catch (dbErr) {
+        Logger.error(`SQLite kaydı silinirken hata: ${dbErr.message}`);
         console.error("SQLite kaydı silinirken hata:", dbErr);
       }
     }
@@ -5350,8 +5618,10 @@ async function deleteSingleRom(game) {
     renderSidebarConsoles();
     renderActiveGames();
     
+    Logger.success(`Oyun ve ilişkili tüm medyalar başarıyla silindi: ${game.title}`);
     showToast(`"${game.title}" oyunu başarıyla silindi.`, 'success');
   } catch (err) {
+    Logger.error(`Oyun silinirken hata oluştu: ${err.message}`);
     console.error("Oyun silinirken hata:", err);
     alert(`Hata: Oyun silinemedi! Lütfen dosya izinlerini ve SD kart bağlantısını kontrol edin.\nDetay: ${err.message}`);
   }
@@ -5364,6 +5634,7 @@ async function deleteBulkRoms() {
   if (!system) return;
 
   const count = selectedRomsBulk.length;
+  Logger.info(`Toplu oyun silme işlemi başlatıldı: ${count} adet oyun silinecek.`);
   const confirmation = confirm(`Seçilen ${count} adet oyunu ve SD karttaki tüm ilişkili medya dosyalarını (görseller, videolar vb.) KALICI olarak silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!`);
   if (!confirmation) return;
 
@@ -5425,8 +5696,10 @@ async function deleteBulkRoms() {
 
       // 4. Bellekten çıkar
       system.games = system.games.filter(g => g !== game);
+      Logger.info(`[Toplu Silme] Silindi: ${game.filename}`);
       successCount++;
     } catch (err) {
+      Logger.error(`[Toplu Silme] Silinemedi: ${game.filename} (Hata: ${err.message})`);
       console.error(`Oyun silinemedi: ${game.filename}`, err);
       failCount++;
     }
@@ -5440,6 +5713,7 @@ async function deleteBulkRoms() {
       await writeGamelistXMLFile(system);
     }
   } catch (err) {
+    Logger.error(`[Toplu Silme] Silme sonrası veritabanı kaydetme hatası: ${err.message}`);
     console.error("Silme sonrası veritabanı yazma hatası:", err);
   }
 
@@ -5453,8 +5727,10 @@ async function deleteBulkRoms() {
   renderActiveGames();
 
   if (failCount === 0) {
+    Logger.success(`[Toplu Silme] Seçilen tüm ${successCount} oyun ve medyalar başarıyla silindi.`);
     showToast(`Seçilen ${successCount} adet oyun başarıyla silindi.`, 'success');
   } else {
+    Logger.warn(`[Toplu Silme] İşlem bitti. Başarılı: ${successCount}, Başarısız: ${failCount}`);
     alert(`Silme işlemi tamamlandı.\nBaşarıyla Silinen: ${successCount}\nSilinemeyen: ${failCount}\nLütfen SD kart izinlerinizi kontrol edin.`);
   }
 }
