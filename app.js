@@ -16,6 +16,14 @@ let activeFilters = {
 let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
 let showDuplicatesOnly = false;      // Toggle to show duplicate ROMs grouped
 
+// --- Sidebar Manufacturer Grouping State ---
+let sidebarCollapseState = {};
+try {
+  sidebarCollapseState = JSON.parse(localStorage.getItem('rrm_sidebar_collapse') || '{}');
+} catch (e) {
+  sidebarCollapseState = {};
+}
+
 // --- Bulk Scraper State ---
 let bulkQueue = [];                  // ROM objects to be processed
 let bulkActiveIndex = 0;             // Index of the currently processed ROM
@@ -695,6 +703,35 @@ const CONSOLE_CONFIGS = {
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   }
 };
+
+// --- Get Console Manufacturer mapping for group listing ---
+function getConsoleManufacturer(consoleId) {
+  const cid = consoleId.toLowerCase();
+  
+  if (['snes', 'sfc', 'gba', 'nes', 'fc', 'gb', 'gbc', 'n64', 'nds', 'nds_arm9', 'wii', 'gamecube', 'virtualboy', 'pokemini'].includes(cid)) {
+    return { name: 'Nintendo', logo: '🔴' };
+  }
+  if (['megadrive', 'genesis', 'sega32x', 'segacd', 'sms', 'gg', 'sega', 'dreamcast', 'saturn', 'sg1000'].includes(cid)) {
+    return { name: 'Sega', logo: '🔵' };
+  }
+  if (['psx', 'ps1', 'psp', 'ps2', 'pspminis'].includes(cid)) {
+    return { name: 'Sony', logo: '🖤' };
+  }
+  if (['atari', 'atari2600', 'atari5200', 'atari7800', 'atarist', 'lynx'].includes(cid)) {
+    return { name: 'Atari', logo: '🕹️' };
+  }
+  if (['neogeo', 'neogeopocket', 'ngpc', 'ngp'].includes(cid)) {
+    return { name: 'SNK', logo: '⚡' };
+  }
+  if (['pcengine', 'tg16', 'pce', 'tgcd'].includes(cid)) {
+    return { name: 'NEC', logo: '📟' };
+  }
+  if (['wswan', 'wsc'].includes(cid)) {
+    return { name: 'Bandai', logo: '📟' };
+  }
+  
+  return { name: 'Retro PC & Diğer', logo: '🖥️' };
+}
 
 // --- Initializer ---
 window.addEventListener('DOMContentLoaded', () => {
@@ -1983,6 +2020,8 @@ function renderSidebarConsoles() {
   let totalRoms = 0;
   let totalCovered = 0;
 
+  // 1. Group consoles by manufacturer
+  const groups = {};
   for (const key in consoleData) {
     const sys = consoleData[key];
     const gameCount = sys.games.length;
@@ -1991,27 +2030,83 @@ function renderSidebarConsoles() {
     const coveredCount = sys.games.filter(g => g.image !== "").length;
     totalCovered += coveredCount;
 
-    // Hide systems with 0 roms by default if they are fully loaded, show when showEmptySystems is true
+    // Hide empty systems if showEmptySystems is false
     if (sys.isFullyLoaded && gameCount === 0 && !showEmptySystems) {
       continue;
     }
 
-    const item = document.createElement('li');
-    item.className = `console-item ${activeConsole === key ? 'active' : ''}`;
-    item.setAttribute('data-console', key);
-    item.innerHTML = `
-      <div class="console-info">
-        <span class="console-logo">${sys.config.logo}</span>
-        <span class="console-name">${sys.config.displayName}</span>
+    const manuf = getConsoleManufacturer(key);
+    if (!groups[manuf.name]) {
+      groups[manuf.name] = {
+        name: manuf.name,
+        logo: manuf.logo,
+        totalGames: 0,
+        systems: []
+      };
+    }
+    
+    groups[manuf.name].totalGames += gameCount;
+    groups[manuf.name].systems.push({ key, sys, gameCount });
+  }
+
+  // 2. Render each group
+  for (const groupName in groups) {
+    const group = groups[groupName];
+    const isCollapsed = !!sidebarCollapseState[groupName];
+
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'manufacturer-group';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'manufacturer-header';
+    header.innerHTML = `
+      <div style="display:flex; align-items:center; gap:8px">
+        <span class="manuf-logo">${group.logo}</span>
+        <span class="manuf-name">${group.name}</span>
       </div>
-      <span class="console-badge">${gameCount}</span>
+      <div style="display:flex; align-items:center; gap:8px">
+        <span class="manuf-count">${group.totalGames} OYUN</span>
+        <span class="collapse-toggle">${isCollapsed ? '+' : '-'}</span>
+      </div>
     `;
 
-    item.addEventListener('click', () => {
-      activateConsoleCategory(key);
+    // Click to Toggle Collapse/Expand
+    header.addEventListener('click', () => {
+      sidebarCollapseState[groupName] = !sidebarCollapseState[groupName];
+      localStorage.setItem('rrm_sidebar_collapse', JSON.stringify(sidebarCollapseState));
+      renderSidebarConsoles();
     });
 
-    listContainer.appendChild(item);
+    groupDiv.appendChild(header);
+
+    // Console Items Sublist (UL)
+    const sublist = document.createElement('ul');
+    sublist.className = 'console-sublist';
+    sublist.style.display = isCollapsed ? 'none' : 'flex';
+    sublist.style.flexDirection = 'column';
+
+    group.systems.forEach(itemData => {
+      const item = document.createElement('li');
+      item.className = `console-item ${activeConsole === itemData.key ? 'active' : ''}`;
+      item.setAttribute('data-console', itemData.key);
+      item.innerHTML = `
+        <div class="console-info">
+          <span class="console-logo">${itemData.sys.config.logo}</span>
+          <span class="console-name">${itemData.sys.config.displayName}</span>
+        </div>
+        <span class="console-badge">${itemData.gameCount}</span>
+      `;
+
+      item.addEventListener('click', () => {
+        activateConsoleCategory(itemData.key);
+      });
+
+      sublist.appendChild(item);
+    });
+
+    groupDiv.appendChild(sublist);
+    listContainer.appendChild(groupDiv);
   }
 
   // Update Statistics
