@@ -1141,7 +1141,23 @@ function initUIBindings() {
         showToast("Filtrelere uygun oyun bulunamadı!", "error");
         return;
       }
-      startBulkScrape(filtered);
+
+      // Check if there are already scraped games in the queue
+      const scrapedCount = filtered.filter(g => g.image !== "" || g.localImagePath !== "").length;
+      let finalQueue = [...filtered];
+      
+      if (scrapedCount > 0 && !activeFilters.missingCover) {
+        const skipScraped = confirm(`Sistemde halihazırda kapak resmi/görseli olan ${scrapedCount} oyun bulunuyor.\n\nScreenScraper günlük sorgu kotanızı korumak için halihazırda scrape edilmiş olan bu oyunları ATLAMAK ister misiniz?\n\n(Sadece kapak resmi eksik olanları taramak için 'Tamam' butonuna, tüm oyunları sıfırdan yeniden taramak için 'İptal' butonuna basın.)`);
+        if (skipScraped) {
+          finalQueue = filtered.filter(g => g.image === "" && g.localImagePath === "");
+          if (finalQueue.length === 0) {
+            showToast("Taranacak eksik kapaklı oyun bulunamadı!", "info");
+            return;
+          }
+        }
+      }
+
+      startBulkScrape(finalQueue);
     });
   }
 
