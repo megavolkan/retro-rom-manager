@@ -9,6 +9,7 @@ let currentViewMode = 'grid';       // 'grid' or 'list'
 let consoleData = {};               // Maps system name to system details (games, handles, xml)
 let selectedRom = null;             // Currently selected ROM in the inspector
 let selectedRomsBulk = [];          // Currently checked ROMs for bulk actions
+let lastCheckedGame = null;         // Last checked ROM for shift-click selection
 let activeFilters = {
   search: '',
   missingCover: false
@@ -2474,6 +2475,7 @@ async function activateConsoleCategory(key) {
 
   // Clear bulk selections
   selectedRomsBulk = [];
+  lastCheckedGame = null;
   updateBulkActionBarUI();
 
   // Update Sidebar active state
@@ -2692,14 +2694,37 @@ function renderGridView(container, games) {
     if (chk) {
       chk.addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent opening game details
-      });
-      chk.addEventListener('change', (e) => {
-        if (e.target.checked) {
-          if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+        
+        const isChecked = chk.checked;
+        
+        if (e.shiftKey && lastCheckedGame && games.includes(lastCheckedGame)) {
+          const lastIdx = games.indexOf(lastCheckedGame);
+          const currentIdx = games.indexOf(game);
+          const start = Math.min(lastIdx, currentIdx);
+          const end = Math.max(lastIdx, currentIdx);
+          
+          for (let idx = start; idx <= end; idx++) {
+            const targetGame = games[idx];
+            if (isChecked) {
+              if (!selectedRomsBulk.includes(targetGame)) {
+                selectedRomsBulk.push(targetGame);
+              }
+            } else {
+              selectedRomsBulk = selectedRomsBulk.filter(g => g !== targetGame);
+            }
+          }
+          
+          renderActiveGames();
+          updateBulkActionBarUI();
         } else {
-          selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+          if (isChecked) {
+            if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+          } else {
+            selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+          }
+          lastCheckedGame = game;
+          updateBulkActionBarUI();
         }
-        updateBulkActionBarUI();
       });
     }
 
@@ -2760,14 +2785,37 @@ function renderListView(container, games) {
     if (chk) {
       chk.addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent opening game details
-      });
-      chk.addEventListener('change', (e) => {
-        if (e.target.checked) {
-          if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+        
+        const isChecked = chk.checked;
+        
+        if (e.shiftKey && lastCheckedGame && games.includes(lastCheckedGame)) {
+          const lastIdx = games.indexOf(lastCheckedGame);
+          const currentIdx = games.indexOf(game);
+          const start = Math.min(lastIdx, currentIdx);
+          const end = Math.max(lastIdx, currentIdx);
+          
+          for (let idx = start; idx <= end; idx++) {
+            const targetGame = games[idx];
+            if (isChecked) {
+              if (!selectedRomsBulk.includes(targetGame)) {
+                selectedRomsBulk.push(targetGame);
+              }
+            } else {
+              selectedRomsBulk = selectedRomsBulk.filter(g => g !== targetGame);
+            }
+          }
+          
+          renderActiveGames();
+          updateBulkActionBarUI();
         } else {
-          selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+          if (isChecked) {
+            if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+          } else {
+            selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+          }
+          lastCheckedGame = game;
+          updateBulkActionBarUI();
         }
-        updateBulkActionBarUI();
       });
     }
 
@@ -2824,6 +2872,24 @@ function renderDuplicateGroupsView(container, games) {
     return;
   }
 
+  // Pre-sort all groups and build a flat array of all duplicate games for Shift+Click range matching
+  const flatDuplicateGames = [];
+  const sortedGroups = {};
+  
+  duplicateKeys.forEach(key => {
+    const groupGames = groups[key];
+    // Sort games in the group: prefer .zip files, then alphabetically
+    groupGames.sort((a, b) => {
+      const extA = a.filename.split('.').pop().toLowerCase();
+      const extB = b.filename.split('.').pop().toLowerCase();
+      if (extA === 'zip' && extB !== 'zip') return -1;
+      if (extA !== 'zip' && extB === 'zip') return 1;
+      return a.filename.localeCompare(b.filename);
+    });
+    sortedGroups[key] = groupGames;
+    flatDuplicateGames.push(...groupGames);
+  });
+
   const wrapper = document.createElement('div');
   wrapper.className = 'rom-duplicates-layout';
   wrapper.style = `
@@ -2833,17 +2899,8 @@ function renderDuplicateGroupsView(container, games) {
   `;
 
   duplicateKeys.forEach(key => {
-    const groupGames = groups[key];
+    const groupGames = sortedGroups[key];
     
-    // Sort games in the group: prefer .zip files, then alphabetically
-    groupGames.sort((a, b) => {
-      const extA = a.filename.split('.').pop().toLowerCase();
-      const extB = b.filename.split('.').pop().toLowerCase();
-      if (extA === 'zip' && extB !== 'zip') return -1;
-      if (extA !== 'zip' && extB === 'zip') return 1;
-      return a.filename.localeCompare(b.filename);
-    });
-
     const panel = document.createElement('div');
     panel.className = 'duplicate-group-panel';
 
@@ -2893,16 +2950,42 @@ function renderDuplicateGroupsView(container, games) {
         }
       });
 
-      // Handle checkbox change
+      // Handle checkbox click (with Shift support)
       const chk = row.querySelector('.duplicate-row-chk');
       if (chk) {
-        chk.addEventListener('change', (e) => {
-          if (e.target.checked) {
-            if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+        chk.addEventListener('click', (e) => {
+          e.stopPropagation(); // Avoid triggering details selection
+          
+          const isChecked = chk.checked;
+          
+          if (e.shiftKey && lastCheckedGame && flatDuplicateGames.includes(lastCheckedGame)) {
+            const lastIdx = flatDuplicateGames.indexOf(lastCheckedGame);
+            const currentIdx = flatDuplicateGames.indexOf(game);
+            const start = Math.min(lastIdx, currentIdx);
+            const end = Math.max(lastIdx, currentIdx);
+            
+            for (let idx = start; idx <= end; idx++) {
+              const targetGame = flatDuplicateGames[idx];
+              if (isChecked) {
+                if (!selectedRomsBulk.includes(targetGame)) {
+                  selectedRomsBulk.push(targetGame);
+                }
+              } else {
+                selectedRomsBulk = selectedRomsBulk.filter(g => g !== targetGame);
+              }
+            }
+            
+            renderActiveGames();
+            updateBulkActionBarUI();
           } else {
-            selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+            if (isChecked) {
+              if (!selectedRomsBulk.includes(game)) selectedRomsBulk.push(game);
+            } else {
+              selectedRomsBulk = selectedRomsBulk.filter(g => g !== game);
+            }
+            lastCheckedGame = game;
+            updateBulkActionBarUI();
           }
-          updateBulkActionBarUI();
         });
       }
 
