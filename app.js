@@ -2062,7 +2062,6 @@ function renderSidebarConsoles() {
     header.className = 'manufacturer-header';
     header.innerHTML = `
       <div style="display:flex; align-items:center; gap:8px">
-        <span class="manuf-logo">${group.logo}</span>
         <span class="manuf-name">${group.name}</span>
       </div>
       <div style="display:flex; align-items:center; gap:8px">
