@@ -793,9 +793,28 @@ function initUIBindings() {
 
   // Search Input Handler
   const searchInput = document.getElementById('search-input');
+  const searchClearBtn = document.getElementById('search-clear-btn');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-      activeFilters.search = e.target.value.toLowerCase().trim();
+      const val = e.target.value;
+      activeFilters.search = val.toLowerCase().trim();
+      
+      // Show/hide clear button based on text content
+      if (searchClearBtn) {
+        searchClearBtn.style.display = val.length > 0 ? 'block' : 'none';
+      }
+      
+      renderActiveGames();
+    });
+  }
+
+  // Search Clear Button click handler
+  if (searchClearBtn && searchInput) {
+    searchClearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      activeFilters.search = '';
+      searchClearBtn.style.display = 'none';
+      searchInput.focus();
       renderActiveGames();
     });
   }

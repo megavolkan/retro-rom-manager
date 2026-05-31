@@ -355,10 +355,25 @@ body {
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   color: #fff;
-  padding: 10px 15px 10px 38px;
+  padding: 10px 32px 10px 38px;
   font-family: var(--font-main);
   font-size: 0.9rem;
   transition: var(--transition-smooth);
+}
+.search-clear-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.search-clear-btn:hover {
+  color: #ff3860 !important;
+  text-shadow: 0 0 8px rgba(255, 56, 96, 0.5);
 }
 .search-input:focus {
   outline: none;
