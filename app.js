@@ -3499,7 +3499,7 @@ async function fetchWithCorsProxy(targetUrl) {
     url => `https://retro-rom-manager.test/proxy.php?url=` + encodeURIComponent(url),
     
     // 4. Kamu CORS Proksileri (Eğer yerel PHP sunucusu çalışmıyorsa yedekler)
-    url => `https://api.codetabs.com/v1/proxy?quest=` + encodeURIComponent(url),
+    url => `https://api.codetabs.com/v1/proxy/?quest=` + encodeURIComponent(url),
     url => `https://api.allorigins.win/raw?url=` + encodeURIComponent(url),
     url => `https://corsproxy.io/?` + encodeURIComponent(url),
     url => `https://thingproxy.freeboard.io/fetch/` + url
