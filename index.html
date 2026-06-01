@@ -206,9 +206,9 @@
 
   <!-- Modal 3: Device Profile Creator & Settings -->
   <div class="modal-overlay" id="profile-modal">
-    <div class="modal-container" style="width: 500px;">
+    <div class="modal-container" style="width: 640px;">
       <div class="modal-header">
-        <h3 class="modal-title">Cihaz Profili Oluştur</h3>
+        <h3 class="modal-title">Ayarlar</h3>
         <button class="close-modal-btn" id="btn-close-profile-modal">&times;</button>
       </div>
       <div class="modal-body">
@@ -340,7 +340,7 @@
           <!-- Advanced Paths Config Group (Collapsible) -->
           <div style="border-top:1px solid rgba(255,255,255,0.05); padding-top:15px; margin-top:15px;">
             <button type="button" id="btn-toggle-advanced-paths" class="filter-btn" style="width:100%; justify-content:space-between; font-weight:600; font-family:var(--font-tech); font-size:0.75rem; letter-spacing:0.5px">
-              ⚙️ GELİŞMİŞ KLASÖR AYARLARI <span id="adv-toggle-icon">▼</span>
+              GELİŞMİŞ KLASÖR AYARLARI <span id="adv-toggle-icon">▼</span>
             </button>
             <div id="advanced-paths-group" style="display:none; flex-direction:column; gap:12px; margin-top:12px; background:rgba(0,0,0,0.15); padding:12px; border-radius:6px; border:1px solid rgba(255,255,255,0.02)">
               <div class="form-field">
@@ -364,7 +364,7 @@
           <!-- Scraper Settings Config Group (Collapsible) -->
           <div style="border-top:1px solid rgba(255,255,255,0.05); padding-top:15px; margin-top:15px;">
             <button type="button" id="btn-toggle-scraper-settings" class="filter-btn" style="width:100%; justify-content:space-between; font-weight:600; font-family:var(--font-tech); font-size:0.75rem; letter-spacing:0.5px">
-              🔍 SCRAPER HESAP AYARLARI <span id="scraper-toggle-icon">▼</span>
+              SCRAPER HESAP AYARLARI <span id="scraper-toggle-icon">▼</span>
             </button>
             <div id="scraper-settings-group" style="display:none; flex-direction:column; gap:12px; margin-top:12px; background:rgba(0,0,0,0.15); padding:12px; border-radius:6px; border:1px solid rgba(255,255,255,0.02)">
               <div style="font-size:0.65rem; color:var(--text-secondary); line-height:1.4">
@@ -421,16 +421,16 @@
           <div style="border-top:1px solid rgba(255,255,255,0.05); padding-top:15px; margin-top:15px; display:flex; flex-direction:column; gap:8px">
             <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.68rem; font-weight:600; color:var(--text-secondary)">
               <input type="checkbox" id="chk-auto-reconnect" checked style="accent-color:hsl(var(--retro-cyan)); cursor:pointer">
-              🔌 Açılışta Son Takılan SD Karta Hızlı Bağlan Butonunu Göster
+              Açılışta Son Takılan SD Karta Hızlı Bağlan Butonunu Göster
             </label>
             <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.68rem; font-weight:600; color:var(--text-secondary)">
               <input type="checkbox" id="chk-enable-logger" style="accent-color:hsl(var(--retro-cyan)); cursor:pointer">
-              📋 Canlı Sistem Log Penceresini Etkinleştir (retromgr.log)
+              Canlı Sistem Log Penceresini Etkinleştir (retromgr.log)
             </label>
           </div>
 
           <div style="display:flex; gap:10px; margin-top:20px; width:100%">
-            <button class="scrape-btn" id="btn-save-profile" style="flex:1">💾 Profili Kaydet</button>
+            <button class="scrape-btn" id="btn-save-profile" style="flex:1">💾 Kaydet</button>
             <button class="filter-btn" id="btn-delete-profile" style="background:rgba(255, 56, 96, 0.15); border:1px solid hsl(var(--retro-red)); color:#fff; display:none" title="Profil Ayarlarını Sil">🗑️ Profili Sil</button>
           </div>
         </div>
