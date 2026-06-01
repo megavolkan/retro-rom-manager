@@ -17,6 +17,12 @@ let activeFilters = {
 let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
 let showDuplicatesOnly = false;      // Toggle to show duplicate ROMs grouped
 
+// --- Helper to resolve matching system folder name symmetrically ---
+function getSystemFolderName(system) {
+  if (!system) return "";
+  return system.dirHandle ? system.dirHandle.name : system.config.id.toUpperCase();
+}
+
 // --- Sidebar Manufacturer Grouping State ---
 let sidebarCollapseState = {};
 try {
@@ -2027,7 +2033,7 @@ async function tryAutoDetectLocalImage(system, game) {
     if (currentProfile.paths.imagesLoc === 'root-separate') {
       const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
       const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: false });
-      sysImgsHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+      sysImgsHandle = await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: false });
     } else {
       // standard subfolder - resolve dynamically using imagesRoot
       try {
@@ -2085,7 +2091,7 @@ async function tryAutoDetectLocalImage(system, game) {
         
         // Save the correct relative path style
         if (currentProfile.paths.imagesLoc === 'root-separate') {
-          game.localImagePath = `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}${resolvedSuffix}.${resolvedExt}`;
+          game.localImagePath = `/${currentProfile.paths.imagesRoot}/${getSystemFolderName(system)}/${baseName}${resolvedSuffix}.${resolvedExt}`;
         } else {
           game.localImagePath = `./${currentProfile.paths.imagesRoot}/${baseName}${resolvedSuffix}.${resolvedExt}`;
         }
@@ -2115,7 +2121,7 @@ async function loadLocalImageBlob(system, game, imagePath) {
 
       const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
       const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: false });
-      const sysImgsHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+      const sysImgsHandle = await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: false });
       
       // Try to load
       try {
@@ -2161,7 +2167,7 @@ async function loadLocalImageBlob(system, game, imagePath) {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
         const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: false });
-        sysImgsHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+        sysImgsHandle = await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: false });
       } else {
         const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
         const pathParts = imgDirName.split('/');
@@ -2203,7 +2209,7 @@ async function loadLocalImageBlob(system, game, imagePath) {
           const file = await fileHandle.getFile();
           game.image = URL.createObjectURL(file);
           game.localImagePath = currentProfile.paths.imagesLoc === 'root-separate' ? 
-            `/${currentProfile.paths.imagesRoot}/${system.config.id.toUpperCase()}/${baseName}${resolvedSuffix}.${resolvedExt}` : 
+            `/${currentProfile.paths.imagesRoot}/${getSystemFolderName(system)}/${baseName}${resolvedSuffix}.${resolvedExt}` : 
             `./${currentProfile.paths.imagesRoot}/${baseName}${resolvedSuffix}.${resolvedExt}`;
         }
       }
@@ -3282,7 +3288,7 @@ async function writeGamelistXMLFile(system) {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
         const filename = localPath.split('/').pop();
-        localPath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${filename}`;
+        localPath = `/${cleanRoot}/${getSystemFolderName(system)}/${filename}`;
       } else {
         const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
         const filename = localPath.split('/').pop();
@@ -3296,7 +3302,7 @@ async function writeGamelistXMLFile(system) {
       let localPath = "";
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
-        localPath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${safeTitle}.png`;
+        localPath = `/${cleanRoot}/${getSystemFolderName(system)}/${safeTitle}.png`;
       } else {
         const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
         localPath = `./${cleanRoot}/${safeTitle}.png`;
@@ -3314,7 +3320,7 @@ async function writeGamelistXMLFile(system) {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
         const filename = localPath.split('/').pop();
-        localPath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${filename}`;
+        localPath = `/${cleanRoot}/${getSystemFolderName(system)}/${filename}`;
       } else {
         const cleanRoot = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
         const filename = localPath.split('/').pop();
@@ -4003,8 +4009,8 @@ async function applyScrapedGameMetadata(scraped) {
           // Save in root/Imgs/<sys>/
           const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
           const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: true });
-          imagesHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
-          localImgPath = `/${cleanImgRoot}/${system.config.id.toUpperCase()}/${imgFilename}`;
+          imagesHandle = await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: true });
+          localImgPath = `/${cleanImgRoot}/${getSystemFolderName(system)}/${imgFilename}`;
         } else {
           // standard subfolder - resolve dynamically using imagesRoot
           const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
@@ -4066,8 +4072,8 @@ async function applyScrapedGameMetadata(scraped) {
           // Save in root/Videos/<sys>/
           const cleanVidRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
           const vidsRootHandle = await sdCardHandle.getDirectoryHandle(cleanVidRoot, { create: true });
-          videosHandle = await vidsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
-          localVideoPath = `/${cleanVidRoot}/${system.config.id.toUpperCase()}/${vidFilename}`;
+          videosHandle = await vidsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: true });
+          localVideoPath = `/${cleanVidRoot}/${getSystemFolderName(system)}/${vidFilename}`;
         } else {
           // standard subfolder - resolve dynamically using videosRoot
           const vidDirName = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
@@ -4399,8 +4405,8 @@ async function processSingleRomSilent(game) {
             if (currentProfile.paths.imagesLoc === 'root-separate') {
               const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
               const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: true });
-              imagesHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
-              localImgPath = `/${cleanImgRoot}/${system.config.id.toUpperCase()}/${imgFilename}`;
+              imagesHandle = await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: true });
+              localImgPath = `/${cleanImgRoot}/${getSystemFolderName(system)}/${imgFilename}`;
             } else {
               const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
               const pathParts = imgDirName.split('/');
@@ -4449,8 +4455,8 @@ async function processSingleRomSilent(game) {
             if (currentProfile.paths.imagesLoc === 'root-separate') {
               const cleanVidRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
               const vidsRootHandle = await sdCardHandle.getDirectoryHandle(cleanVidRoot, { create: true });
-              videosHandle = await vidsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
-              localVideoPath = `/${cleanVidRoot}/${system.config.id.toUpperCase()}/${vidFilename}`;
+              videosHandle = await vidsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: true });
+              localVideoPath = `/${cleanVidRoot}/${getSystemFolderName(system)}/${vidFilename}`;
             } else {
               const vidDirName = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
               const pathParts = vidDirName.split('/');
@@ -4676,8 +4682,8 @@ async function selectManualCoverImage() {
       // Save in root/Imgs/<sys>/
       const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
       const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: true });
-      imagesHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: true });
-      localImgPath = `/${cleanImgRoot}/${system.config.id.toUpperCase()}/${imgFilename}`;
+      imagesHandle = await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: true });
+      localImgPath = `/${cleanImgRoot}/${getSystemFolderName(system)}/${imgFilename}`;
     } else {
       // standard subfolder - resolve dynamically using imagesRoot
       const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
@@ -5172,7 +5178,7 @@ async function writeSqliteDBFile(system) {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
         const filename = localPath.split('/').pop();
-        localPath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${filename}`;
+        localPath = `/${cleanRoot}/${getSystemFolderName(system)}/${filename}`;
       } else {
         const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
         const filename = localPath.split('/').pop();
@@ -5183,7 +5189,7 @@ async function writeSqliteDBFile(system) {
       const safeTitle = game.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
-        localPath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${safeTitle}.png`;
+        localPath = `/${cleanRoot}/${getSystemFolderName(system)}/${safeTitle}.png`;
       } else {
         const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
         localPath = `./${cleanRoot}/${safeTitle}.png`;
@@ -5336,7 +5342,7 @@ async function scanGameImagesList(system, game) {
     if (currentProfile.paths.imagesLoc === 'root-separate') {
       const cleanImgRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
       const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanImgRoot, { create: false });
-      sysImgsHandle = await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+      sysImgsHandle = await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: false });
     } else {
       // standard subfolder
       const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
@@ -5391,7 +5397,7 @@ async function scanGameImagesList(system, game) {
           let relativePath = "";
           if (currentProfile.paths.imagesLoc === 'root-separate') {
             const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
-            relativePath = `/${cleanRoot}/${system.config.id.toUpperCase()}/${baseName}${suffix}.${resolvedExt}`;
+            relativePath = `/${cleanRoot}/${getSystemFolderName(system)}/${baseName}${suffix}.${resolvedExt}`;
           } else {
             const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
             relativePath = `./${cleanRoot}/${baseName}${suffix}.${resolvedExt}`;
@@ -5492,7 +5498,7 @@ async function getSystemDirectoryHandle(system, type) {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
         const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanRoot, { create: false });
-        return await imgsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+        return await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: false });
       } else {
         const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
         const pathParts = imgDirName.split('/');
@@ -5508,7 +5514,7 @@ async function getSystemDirectoryHandle(system, type) {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
         const vidsRootHandle = await sdCardHandle.getDirectoryHandle(cleanRoot, { create: false });
-        return await vidsRootHandle.getDirectoryHandle(system.config.id.toUpperCase(), { create: false });
+        return await vidsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: false });
       } else {
         const vidDirName = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
         const pathParts = vidDirName.split('/');
