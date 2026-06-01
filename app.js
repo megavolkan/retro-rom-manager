@@ -2693,6 +2693,7 @@ function renderGridView(container, games) {
     const hasImage = game.image !== "" || game.localImagePath !== "";
     const scrapedDotClass = hasImage ? 'completed' : '';
     const badgeText = game.filename.split('.').pop();
+    const isImageLoaded = game.image && (game.image.startsWith('blob:') || game.image.startsWith('http'));
 
     card.innerHTML = `
       <!-- Bulk Checkbox -->
@@ -2702,7 +2703,10 @@ function renderGridView(container, games) {
       <span class="card-badge" style="right:8px; top:8px">${badgeText}</span>
       <span class="scraped-dot ${scrapedDotClass}"></span>
       <div class="boxart-wrapper" style="display:flex; align-items:center; justify-content:center; width:100%; height:100%; position:relative">
-        <img class="boxart-img lazy-boxart" alt="${game.title}" style="opacity:0; transition:opacity 0.25s ease; width:100%; height:100%; object-fit:inherit">
+        ${isImageLoaded ? 
+          `<img class="boxart-img" src="${game.image}" alt="${game.title}" style="opacity:1; width:100%; height:100%; object-fit:inherit">` :
+          `<img class="boxart-img lazy-boxart" alt="${game.title}" style="opacity:0; transition:opacity 0.25s ease; width:100%; height:100%; object-fit:inherit">`
+        }
       </div>
       <div class="rom-info">
         <h4 class="rom-title" title="${game.title}">${game.title}</h4>
@@ -2784,6 +2788,7 @@ function renderListView(container, games) {
     // Check if this game is currently selected in bulk
     const isChecked = selectedRomsBulk.includes(game);
     const isScraped = game.image !== "" || game.localImagePath !== "";
+    const isImageLoaded = game.image && (game.image.startsWith('blob:') || game.image.startsWith('http'));
 
     row.innerHTML = `
       <!-- Bulk Checkbox -->
@@ -2792,7 +2797,10 @@ function renderListView(container, games) {
       </div>
       <div class="row-left">
         <div class="row-icon-wrapper" style="display:flex; align-items:center; justify-content:center">
-          <img class="row-thumb lazy-row-thumb" alt="${game.title}" style="opacity:0; transition:opacity 0.2s ease; width:100%; height:100%; object-fit:cover">
+          ${isImageLoaded ? 
+            `<img class="row-thumb" src="${game.image}" alt="${game.title}" style="opacity:1; width:100%; height:100%; object-fit:cover">` :
+            `<img class="row-thumb lazy-row-thumb" alt="${game.title}" style="opacity:0; transition:opacity 0.2s ease; width:100%; height:100%; object-fit:cover">`
+          }
         </div>
         <span class="row-name" title="${game.filename}">${game.title}</span>
       </div>
@@ -4037,6 +4045,41 @@ function presentScrapeMatches(matches) {
   modal.classList.add('active');
 }
 
+// --- In-place update of the active game list item's thumbnail ---
+function updateActiveListItemCover(imageSrc) {
+  if (!imageSrc) return;
+  const activeItem = document.querySelector('.rom-card.active, .rom-row-item.active');
+  if (!activeItem) return;
+
+  const imgEl = activeItem.querySelector('.boxart-img, .row-thumb');
+  const wrapper = activeItem.querySelector('.boxart-wrapper, .row-icon-wrapper');
+  const dot = activeItem.querySelector('.scraped-dot, .row-status-text');
+
+  // Update scrape status badge
+  if (dot) {
+    if (dot.classList.contains('scraped-dot')) {
+      dot.className = 'scraped-dot completed';
+    } else {
+      dot.className = 'row-status-text scraped';
+      dot.innerHTML = '🟢 Kapak Yüklendi';
+    }
+  }
+
+  // Update or restore cover image
+  if (imgEl) {
+    imgEl.src = imageSrc;
+    imgEl.style.opacity = '1';
+    imgEl.classList.remove('lazy-boxart', 'lazy-row-thumb');
+  } else if (wrapper) {
+    // If it was replaced by a cartridge placeholder, restore it
+    if (activeItem.classList.contains('rom-card')) {
+      wrapper.innerHTML = `<img class="boxart-img" src="${imageSrc}" alt="Kapak" style="opacity:1; width:100%; height:100%; object-fit:inherit">`;
+    } else {
+      wrapper.innerHTML = `<img class="row-thumb" src="${imageSrc}" alt="Kapak" style="opacity:1; width:100%; height:100%; object-fit:cover">`;
+    }
+  }
+}
+
 // --- Apply Scraped Metadata & Automatically Download & Write Cover Art and Videos to SD Card ---
 async function applyScrapedGameMetadata(scraped) {
   if (!selectedRom || !activeConsole) return;
@@ -4133,6 +4176,9 @@ async function applyScrapedGameMetadata(scraped) {
   if (!imgWrittenSuccessfully && scraped.image) {
     selectedRom.image = scraped.image;
   }
+
+  // Update active list item cover art in real time in DOM
+  updateActiveListItemCover(selectedRom.image);
 
   // 2. Download and save the game introduction video directly into the SD card!
   let videoWrittenSuccessfully = false;
@@ -4813,6 +4859,9 @@ async function selectManualCoverImage() {
     if (preview) {
       preview.src = selectedRom.image;
     }
+
+    // Update active list item cover art in real time in DOM
+    updateActiveListItemCover(selectedRom.image);
 
     // Write metadata
     if (currentProfile.metadataStorage === 'sqlite') {
