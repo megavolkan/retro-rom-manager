@@ -1823,16 +1823,31 @@ async function scanSDCardDirectories() {
   const progressBar = document.getElementById('scan-progress-fill');
   const progressText = document.getElementById('scan-progress-text');
   
-  // Resolve ROMs Root directory dynamically
+  // Resolve ROMs Root directory dynamically with recursive cleaning (supports leading/trailing slashes and dots)
   let romsRootHandle = sdCardHandle;
   if (currentProfile.paths.romsRoot) {
     try {
-      romsRootHandle = await sdCardHandle.getDirectoryHandle(currentProfile.paths.romsRoot, { create: false });
-      Logger.info(`ROMs ana klasörüne erişildi: /${currentProfile.paths.romsRoot}`);
-      console.log(`ROMs ana klasörüne erişildi: /${currentProfile.paths.romsRoot}`);
+      const cleanRomsRoot = currentProfile.paths.romsRoot
+        .replace(/^\.\//, '')
+        .replace(/^\//, '')
+        .replace(/\/$/, '')
+        .trim();
+      
+      if (cleanRomsRoot) {
+        const pathParts = cleanRomsRoot.split('/');
+        let currentHandle = sdCardHandle;
+        for (const part of pathParts) {
+          if (part) {
+            currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+          }
+        }
+        romsRootHandle = currentHandle;
+      }
+      Logger.info(`ROMs ana klasörüne erişildi: /${cleanRomsRoot || ""}`);
+      console.log(`ROMs ana klasörüne erişildi: /${cleanRomsRoot || ""}`);
     } catch (err) {
-      Logger.warn(`ROMs ana klasörü bulunamadı: ${currentProfile.paths.romsRoot}. Kök dizin kullanılacak.`);
-      console.warn(`ROMs ana klasörü bulunamadı: ${currentProfile.paths.romsRoot}. Kök klasörden aranıyor.`);
+      Logger.warn(`ROMs ana klasörü bulunamadı: ${currentProfile.paths.romsRoot}. Kök dizin kullanılacak: ${err.message}`);
+      console.warn(`ROMs ana klasörü bulunamadı: ${currentProfile.paths.romsRoot}. Kök klasörden aranıyor.`, err);
       romsRootHandle = sdCardHandle;
     }
   }
@@ -5054,7 +5069,9 @@ async function tryLoadOrCreateSqliteDB(system) {
   let db = null;
   const dbConfig = currentProfile.sqliteConfig;
   const cols = dbConfig.columns;
-  const tableName = dbConfig.tableName;
+  const tableName = (dbConfig.tableName || "roms")
+    .replace(/{SYSTEM}/g, sysFolder)
+    .replace(/{system}/g, sysId);
   
   if (arrayBuffer) {
     try {
@@ -5148,7 +5165,11 @@ async function writeSqliteDBFile(system) {
   
   const dbConfig = currentProfile.sqliteConfig;
   const cols = dbConfig.columns;
-  const tableName = dbConfig.tableName;
+  const sysId = system.config.id;
+  const sysFolder = system.dirHandle.name;
+  const tableName = (dbConfig.tableName || "roms")
+    .replace(/{SYSTEM}/g, sysFolder)
+    .replace(/{system}/g, sysId);
   
   for (const game of system.games) {
     let exists = false;
@@ -5664,7 +5685,11 @@ async function deleteSingleRom(game) {
       const db = system.sqliteDB;
       const dbConfig = currentProfile.sqliteConfig;
       const cols = dbConfig.columns;
-      const tableName = dbConfig.tableName;
+      const sysId = system.config.id;
+      const sysFolder = system.dirHandle.name;
+      const tableName = (dbConfig.tableName || "roms")
+        .replace(/{SYSTEM}/g, sysFolder)
+        .replace(/{system}/g, sysId);
       const targetPath = game.dbRomPath || `./${game.filename}`;
       
       try {
@@ -5765,7 +5790,11 @@ async function deleteBulkRoms() {
         const db = system.sqliteDB;
         const dbConfig = currentProfile.sqliteConfig;
         const cols = dbConfig.columns;
-        const tableName = dbConfig.tableName;
+        const sysId = system.config.id;
+        const sysFolder = system.dirHandle.name;
+        const tableName = (dbConfig.tableName || "roms")
+          .replace(/{SYSTEM}/g, sysFolder)
+          .replace(/{system}/g, sysId);
         const targetPath = game.dbRomPath || `./${game.filename}`;
         try {
           db.run(`DELETE FROM "${tableName}" WHERE "${cols.filename}" = :romPath`, { ':romPath': targetPath });
