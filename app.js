@@ -4057,7 +4057,8 @@ async function applyScrapedGameMetadata(scraped) {
   selectedRom.description = scraped.description;
 
   const system = consoleData[activeConsole];
-  const safeTitle = scraped.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  const romBaseName = selectedRom.filename.substring(0, selectedRom.filename.lastIndexOf('.')) || selectedRom.filename;
+  const safeTitle = romBaseName.replace(/[\/:*?"<>|]/g, '_');
 
   // 1. Download and save the cover image blob directly into the SD card!
   let imgWrittenSuccessfully = false;
@@ -4468,7 +4469,8 @@ async function processSingleRomSilent(game) {
       game.description = match.description;
 
       const system = consoleData[activeConsole];
-      const safeTitle = match.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      const romBaseName = game.filename.substring(0, game.filename.lastIndexOf('.')) || game.filename;
+      const safeTitle = romBaseName.replace(/[\/:*?"<>|]/g, '_');
 
       // Kapak görselini indir ve SD karta yaz
       let imgWritten = false;
@@ -4773,7 +4775,8 @@ async function selectManualCoverImage() {
     let imagesHandle = null;
     
     const ext = file.name.split('.').pop().toLowerCase();
-    const safeTitle = selectedRom.title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const romBaseName = selectedRom.filename.substring(0, selectedRom.filename.lastIndexOf('.')) || selectedRom.filename;
+    const safeTitle = romBaseName.replace(/[\/:*?"<>|]/g, '_');
     const imgFilename = `${safeTitle}.${ext}`;
     let localImgPath = "";
 
@@ -5254,6 +5257,10 @@ async function writeSqliteDBFile(system) {
   const tableName = (dbConfig.tableName || "roms")
     .replace(/{SYSTEM}/g, sysFolder)
     .replace(/{system}/g, sysId);
+
+  const pattern = dbConfig.pattern || "{SYSTEM}_cache7.db";
+  const dbFilename = pattern.replace(/{SYSTEM}/g, sysFolder).replace(/{system}/g, sysId);
+  const dirHandle = system.dirHandle;
   
   for (const game of system.games) {
     let exists = false;
