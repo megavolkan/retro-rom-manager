@@ -3564,6 +3564,15 @@ function cleanTitleForSearch(filename) {
   let name = filename.substring(0, filename.lastIndexOf('.')) || filename;
   // Remove everything inside parentheses () and brackets []
   name = name.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '');
+  
+  // Strip common leading sorting prefixes:
+  // 1. Digits followed by a dash (e.g., "01 - Sonic")
+  // 2. Digits followed by a dot and space (e.g., "1. Mario")
+  // 3. 3 or more digits followed by a space (e.g., "001 Pokemon")
+  name = name.replace(/^\d+\s*-\s*/, '')
+             .replace(/^\d+\.\s+/, '')
+             .replace(/^\d{3,}\s+/, '');
+
   // Replace multiple spaces with a single space and trim
   return name.replace(/\s+/g, ' ').trim();
 }
