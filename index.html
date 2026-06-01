@@ -37,7 +37,7 @@
         <h1 class="brand-title">RETRO<span>MGR</span></h1>
         <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:2px">
           <div class="brand-subtitle">ROM & Scraper Tool</div>
-          <span style="font-size:0.6rem; font-family:var(--font-tech); background:rgba(0, 243, 255, 0.1); border:1px solid hsl(var(--retro-cyan)); color:hsl(var(--retro-cyan)); padding:2px 6px; border-radius:4px; font-weight:700; letter-spacing:0.5px; box-shadow:0 0 8px hsl(var(--retro-cyan) / 0.3); text-shadow:0 0 2px hsl(var(--retro-cyan))" title="Son Güncelleme: Güvenli Scraper Geliştirici Kimlik Doğrulama Fallback Sistemi (v1.9.6)">v1.9.6</span>
+          <span style="font-size:0.6rem; font-family:var(--font-tech); background:rgba(0, 243, 255, 0.1); border:1px solid hsl(var(--retro-cyan)); color:hsl(var(--retro-cyan)); padding:2px 6px; border-radius:4px; font-weight:700; letter-spacing:0.5px; box-shadow:0 0 8px hsl(var(--retro-cyan) / 0.3); text-shadow:0 0 2px hsl(var(--retro-cyan))" title="Son Güncelleme: Akıllı JPG Sıkıştırma ve İlave Görsel Seçenekleri (v1.9.7)">v1.9.7</span>
         </div>
       </div>
 
@@ -387,9 +387,18 @@
                     <option value="mixrbv1">👾 Standart Karışım (3D Kutu + Ekran + Logo)</option>
                     <option value="box-3d">📦 3D Kutu Resmi (3D Boxart)</option>
                     <option value="box-2d">🖼️ 2D Kutu Resmi (Flat Boxart)</option>
+                    <option value="fanart">🎨 Hayran Tasarımı Arka Plan (Fanart - JPG)</option>
+                    <option value="steamgrid">📐 Steam Izgara Görseli (Grid - JPG)</option>
                     <option value="screenshot">🎮 Oyun İçi Ekran Görüntüsü (Gameplay)</option>
                     <option value="logo">✨ Oyun Logosu (Transparent Wheel Logo)</option>
                   </select>
+                </div>
+              </div>
+              
+              <div class="form-row" style="margin-top:-4px; margin-bottom:4px">
+                <div class="form-field" style="grid-column: span 2; display:flex; align-items:center; gap:8px">
+                  <input type="checkbox" id="chk-scraper-compress" style="accent-color:hsl(var(--retro-cyan)); cursor:pointer">
+                  <label for="chk-scraper-compress" class="form-label" style="font-size:0.65rem; cursor:pointer; margin:0; font-family:var(--font-tech); color:hsl(var(--retro-yellow))">⚡ Kapak Resimlerini JPG'ye Dönüştür ve Sıkıştır (%75 Kalite)</label>
                 </div>
               </div>
               
@@ -483,7 +492,7 @@
     <div class="bulk-modal-container glass-panel">
       <!-- Modal Başlık / Header -->
       <div class="bulk-modal-header">
-        <h3 class="bulk-modal-title">📡 TOPLU ROM SCRAPER <span class="version-badge">v1.9.6</span></h3>
+        <h3 class="bulk-modal-title">📡 TOPLU ROM SCRAPER <span class="version-badge">v1.9.7</span></h3>
         <div class="bulk-stats">
           <div class="bulk-stat-item">
             <span class="stat-label">Toplam</span>

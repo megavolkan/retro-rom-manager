@@ -1208,12 +1208,14 @@ function initUIBindings() {
           document.getElementById('inp-scraper-devid').value = currentProfile.scraper.devid || "";
           document.getElementById('inp-scraper-devpassword').value = currentProfile.scraper.devpassword || "";
           document.getElementById('inp-scraper-media').value = currentProfile.scraper.mediaPref || "mixrbv1";
+          document.getElementById('chk-scraper-compress').checked = currentProfile.scraper.compress === true;
         } else {
           document.getElementById('inp-scraper-ssid').value = "";
           document.getElementById('inp-scraper-sspassword').value = "";
           document.getElementById('inp-scraper-devid').value = "";
           document.getElementById('inp-scraper-devpassword').value = "";
           document.getElementById('inp-scraper-media').value = "mixrbv1";
+          document.getElementById('chk-scraper-compress').checked = false;
         }
 
         // Populate Auto Reconnect Preference
@@ -1737,7 +1739,8 @@ async function saveDeviceProfileAndStart() {
     sspassword: document.getElementById('inp-scraper-sspassword').value.trim(),
     devid: document.getElementById('inp-scraper-devid').value.trim(),
     devpassword: document.getElementById('inp-scraper-devpassword').value.trim(),
-    mediaPref: document.getElementById('inp-scraper-media').value
+    mediaPref: document.getElementById('inp-scraper-media').value,
+    compress: document.getElementById('chk-scraper-compress').checked
   };
 
   // Save Logger preference
@@ -3546,6 +3549,26 @@ async function fetchWithCorsProxy(targetUrl) {
             continue;
           }
         }
+
+        // Eğer ikili (binary) bir dosya istiyorsak (resim/video) ve proxy bize HTML hata sayfası döndüyse bunu engelle
+        if (!targetUrl.includes('output=json')) {
+          const contentType = response.headers.get('content-type') || "";
+          if (contentType.toLowerCase().includes('text/html') || contentType.toLowerCase().includes('text/plain')) {
+            console.warn("Proxy ikili veri yerine HTML/Metin hata sayfası döndü, sonraki proxy deneniyor.");
+            continue;
+          }
+          try {
+            const clone = response.clone();
+            const text = await clone.text();
+            if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html') || text.trim().startsWith('<HTML')) {
+              console.warn("Proxy ikili veri yerine HTML içeriği döndü, sonraki proxy deneniyor.");
+              continue;
+            }
+          } catch (e) {
+            // İkili veri okuma hatası normaldir, devam et
+          }
+        }
+
         return response;
       }
       console.warn(`Proxy başarısız oldu (Status: ${response.status})`);
@@ -3555,6 +3578,34 @@ async function fetchWithCorsProxy(targetUrl) {
     }
   }
   throw lastError || new Error("Tüm CORS Proxy sunucuları başarısız oldu.");
+}
+
+// Görselleri tarayıcı tarafında dinamik olarak JPG formatına dönüştüren ve sıkıştıran yardımcı fonksiyon
+async function compressAndConvertToJpg(blob, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((jpgBlob) => {
+        if (jpgBlob) {
+          resolve(jpgBlob);
+        } else {
+          reject(new Error("Canvas JPEG dışa aktarımı başarısız oldu."));
+        }
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
+    img.src = url;
+  });
 }
 
 // --- Offline & Online Scraper Engine ---
@@ -4017,7 +4068,7 @@ async function applyScrapedGameMetadata(scraped) {
       // Download the image using a CORS-safe proxy fetch
       const imgResponse = await fetchWithCorsProxy(scraped.image);
       if (imgResponse.ok) {
-        const imageBlob = await imgResponse.blob();
+        let imageBlob = await imgResponse.blob();
         
         let imagesHandle = null;
         let imgExt = scraped.imageFormat || "png";
@@ -4027,6 +4078,18 @@ async function applyScrapedGameMetadata(scraped) {
             imgExt = parsedExt.toLowerCase();
           }
         }
+
+        if (currentProfile.scraper && currentProfile.scraper.compress === true) {
+          try {
+            console.log("Kapak resmi sıkıştırma aktif, JPG formatına sıkıştırılıyor...");
+            const compressedBlob = await compressAndConvertToJpg(imageBlob, 0.75);
+            imageBlob = compressedBlob;
+            imgExt = "jpg";
+          } catch (compressErr) {
+            console.warn("Görsel sıkıştırılamadı, orijinal formatta devam ediliyor:", compressErr);
+          }
+        }
+
         const imgFilename = `${safeTitle}.${imgExt}`;
 
         if (currentProfile.paths.imagesLoc === 'root-separate') {
@@ -4415,7 +4478,7 @@ async function processSingleRomSilent(game) {
         try {
           const imgResponse = await fetchWithCorsProxy(match.image);
           if (imgResponse.ok) {
-            const imageBlob = await imgResponse.blob();
+            let imageBlob = await imgResponse.blob();
             let imagesHandle = null;
             let imgExt = match.imageFormat || "png";
             if (!match.imageFormat && match.image) {
@@ -4424,6 +4487,18 @@ async function processSingleRomSilent(game) {
                 imgExt = parsedExt.toLowerCase();
               }
             }
+
+            if (currentProfile.scraper && currentProfile.scraper.compress === true) {
+              try {
+                console.log("Kapak resmi sıkıştırma aktif, JPG formatına sıkıştırılıyor...");
+                const compressedBlob = await compressAndConvertToJpg(imageBlob, 0.75);
+                imageBlob = compressedBlob;
+                imgExt = "jpg";
+              } catch (compressErr) {
+                console.warn("Görsel sıkıştırılamadı, orijinal formatta devam ediliyor:", compressErr);
+              }
+            }
+
             const imgFilename = `${safeTitle}.${imgExt}`;
 
             if (currentProfile.paths.imagesLoc === 'root-separate') {
