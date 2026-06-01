@@ -323,8 +323,8 @@ let currentProfile = {
   scraper: {
     ssid: "",
     sspassword: "",
-    devid: "retrotool",
-    devpassword: "devpwd"
+    devid: "",
+    devpassword: ""
   },
   autoReconnect: true, // Default enabled
   eulaAccepted: false
@@ -1205,14 +1205,14 @@ function initUIBindings() {
         if (currentProfile.scraper) {
           document.getElementById('inp-scraper-ssid').value = currentProfile.scraper.ssid || "";
           document.getElementById('inp-scraper-sspassword').value = currentProfile.scraper.sspassword || "";
-          document.getElementById('inp-scraper-devid').value = currentProfile.scraper.devid || "retrotool";
-          document.getElementById('inp-scraper-devpassword').value = currentProfile.scraper.devpassword || "devpwd";
+          document.getElementById('inp-scraper-devid').value = currentProfile.scraper.devid || "";
+          document.getElementById('inp-scraper-devpassword').value = currentProfile.scraper.devpassword || "";
           document.getElementById('inp-scraper-media').value = currentProfile.scraper.mediaPref || "mixrbv1";
         } else {
           document.getElementById('inp-scraper-ssid').value = "";
           document.getElementById('inp-scraper-sspassword').value = "";
-          document.getElementById('inp-scraper-devid').value = "retrotool";
-          document.getElementById('inp-scraper-devpassword').value = "devpwd";
+          document.getElementById('inp-scraper-devid').value = "";
+          document.getElementById('inp-scraper-devpassword').value = "";
           document.getElementById('inp-scraper-media').value = "mixrbv1";
         }
 
@@ -3779,8 +3779,8 @@ async function triggerOnlineScrape(forceOnline = false) {
 
     const ssid = scraper.ssid;
     const sspassword = scraper.sspassword;
-    const devid = scraper.devid || "retrotool";
-    const devpassword = scraper.devpassword || "devpwd";
+    const devid = scraper.devid || scraper.ssid || "retrotool";
+    const devpassword = scraper.devpassword || scraper.sspassword || "devpwd";
     const systemId = getScreenScraperSystemId(activeConsole);
 
     // Adım A: Önce dosya adıyla tam eşleşme ara (jeuInfos.php)
@@ -4356,8 +4356,8 @@ async function processSingleRomSilent(game) {
 
       const ssid = scraper.ssid;
       const sspassword = scraper.sspassword;
-      const devid = scraper.devid || "retrotool";
-      const devpassword = scraper.devpassword || "devpwd";
+      const devid = scraper.devid || scraper.ssid || "retrotool";
+      const devpassword = scraper.devpassword || scraper.sspassword || "devpwd";
       const systemId = getScreenScraperSystemId(activeConsole);
 
       // Adım A: Dosya adıyla tam eşleşme ara
