@@ -287,6 +287,10 @@ body {
   font-size: 0.7rem;
   font-family: var(--font-tech);
   color: hsl(var(--retro-cyan));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
 }
 .console-item.active .console-badge {
   border-color: hsl(var(--retro-cyan));
@@ -2180,3 +2184,69 @@ body.image-fit-cover .match-thumb {
   color: rgba(255, 255, 255, 0.2);
   margin: 0 4px;
 }
+
+/* Background Sync & Reset Styles (v1.12.0) */
+.badge-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(0, 243, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: hsl(var(--retro-cyan));
+  animation: badge-spin 0.8s linear infinite;
+}
+@keyframes badge-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sync-status-bar {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 12px 18px;
+  min-width: 260px;
+  font-size: 0.8rem;
+  font-family: var(--font-tech);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), var(--neon-glow-cyan);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  backdrop-filter: blur(10px);
+}
+.sync-status-bar.hide {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+}
+.sync-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sync-status-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sync-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.sync-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: hsl(var(--retro-cyan));
+  box-shadow: 0 0 8px hsl(var(--retro-cyan));
+  transition: width 0.3s ease;
+}
+

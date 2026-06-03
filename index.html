@@ -37,7 +37,7 @@
         <h1 class="brand-title">RETRO<span>MGR</span></h1>
         <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:2px">
           <div class="brand-subtitle">ROM & Scraper Tool</div>
-          <span style="font-size:0.6rem; font-family:var(--font-tech); background:rgba(0, 243, 255, 0.1); border:1px solid hsl(var(--retro-cyan)); color:hsl(var(--retro-cyan)); padding:2px 6px; border-radius:4px; font-weight:700; letter-spacing:0.5px; box-shadow:0 0 8px hsl(var(--retro-cyan) / 0.3); text-shadow:0 0 2px hsl(var(--retro-cyan))" title="Son Güncelleme: Rekürsif Klasör Navigasyonu ve Alt Dizin Desteği Entegrasyonu (v1.11.0)">v1.11.0</span>
+          <span style="font-size:0.6rem; font-family:var(--font-tech); background:rgba(0, 243, 255, 0.1); border:1px solid hsl(var(--retro-cyan)); color:hsl(var(--retro-cyan)); padding:2px 6px; border-radius:4px; font-weight:700; letter-spacing:0.5px; box-shadow:0 0 8px hsl(var(--retro-cyan) / 0.3); text-shadow:0 0 2px hsl(var(--retro-cyan))" title="Son Güncelleme: Dinamik Arka Plan Tarama ve Önbellek Senkronizasyonu (v1.12.0)">v1.12.0</span>
         </div>
       </div>
 
@@ -429,6 +429,10 @@
             </label>
           </div>
 
+          <div style="border-top:1px dashed rgba(255,255,255,0.05); padding-top:12px; margin-top:5px;">
+            <button type="button" class="filter-btn" id="btn-reset-cache-rescan" style="width:100%; background:rgba(242, 175, 41, 0.15); border:1px solid hsl(var(--retro-yellow)); color:#fff; font-size:0.75rem; padding:8px 12px; cursor:pointer" title="Tüm oyun önbelleğini sil ve SD kartı sıfırdan yeniden tara">🔄 Önbelleği Sıfırla ve Yeniden Tara</button>
+          </div>
+
           <div style="display:flex; gap:10px; margin-top:20px; width:100%">
             <button class="scrape-btn" id="btn-save-profile" style="flex:1">💾 Kaydet</button>
             <button class="filter-btn" id="btn-delete-profile" style="background:rgba(255, 56, 96, 0.15); border:1px solid hsl(var(--retro-red)); color:#fff; display:none" title="Profil Ayarlarını Sil">🗑️ Profili Sil</button>
@@ -492,7 +496,7 @@
     <div class="bulk-modal-container glass-panel">
       <!-- Modal Başlık / Header -->
       <div class="bulk-modal-header">
-        <h3 class="bulk-modal-title">📡 TOPLU ROM SCRAPER <span class="version-badge">v1.11.0</span></h3>
+        <h3 class="bulk-modal-title">📡 TOPLU ROM SCRAPER <span class="version-badge">v1.12.0</span></h3>
         <div class="bulk-stats">
           <div class="bulk-stat-item">
             <span class="stat-label">Toplam</span>
@@ -565,6 +569,20 @@
   <button id="btn-expand-logs" class="log-expand-btn" style="display: none;" title="Sistem Günlüğünü Aç">
     📋 LOGS
   </button>
+
+  <!-- Background Sync Status Bar (v1.12.0) -->
+  <div id="sync-status-bar" class="sync-status-bar hide">
+    <div class="sync-status-header">
+      <div class="sync-status-text">
+        <span class="badge-spinner"></span>
+        <span id="sync-status-message">Sistem listesi senkronize ediliyor...</span>
+      </div>
+      <span id="sync-status-percent">0%</span>
+    </div>
+    <div class="sync-progress-bar">
+      <div id="sync-progress-fill" class="sync-progress-fill"></div>
+    </div>
+  </div>
 </body>
 </html>
-<!-- Vercel webhook trigger (v1.11.0) -->
+<!-- Vercel webhook trigger (v1.12.0) -->

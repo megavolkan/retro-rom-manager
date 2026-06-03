@@ -332,6 +332,21 @@ async function clearGamesCache(systemKey) {
   }
 }
 
+async function clearAllGamesCache() {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(CACHE_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(CACHE_STORE_NAME);
+      const request = store.clear();
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error("[IndexedDB Cache] Tüm önbellek temizlenirken hata:", err);
+  }
+}
+
 async function saveSDCardHandle(handle) {
   try {
     const db = await openIndexedDB();
@@ -1223,6 +1238,49 @@ function initUIBindings() {
     deleteProfileBtn.addEventListener('click', deleteDeviceProfile);
   }
 
+  const resetCacheBtn = document.getElementById('btn-reset-cache-rescan');
+  if (resetCacheBtn) {
+    resetCacheBtn.addEventListener('click', async () => {
+      const confirmed = confirm("Tüm oyun önbelleğini sıfırlamak ve SD kartı baştan taramak istediğinize emin misiniz?\nBu işlem disk boyutunuza bağlı olarak biraz zaman alabilir.");
+      if (!confirmed) return;
+
+      Logger.info("Kullanıcı talebiyle önbellek sıfırlanıyor ve yeniden tarama başlatılıyor...");
+      
+      const modal = document.getElementById('profile-modal');
+      if (modal) modal.classList.remove('active');
+
+      try {
+        await clearAllGamesCache();
+      } catch (err) {
+        console.error("Önbellek temizleme hatası:", err);
+      }
+
+      for (const key in consoleData) {
+        const sys = consoleData[key];
+        sys.games = [];
+        sys.isFullyLoaded = false;
+        sys.isCounting = false;
+        sys.isSyncing = false;
+      }
+
+      showScanProgressModal(true);
+      await scanSDCardDirectories();
+      showScanProgressModal(false);
+
+      const systems = Object.keys(consoleData);
+      if (systems.length > 0) {
+        let targetSystem = systems[0];
+        for (const sys of systems) {
+          if (consoleData[sys].games.length > 0) {
+            targetSystem = sys;
+            break;
+          }
+        }
+        activateConsoleCategory(targetSystem);
+      }
+    });
+  }
+
   const editProfileBtn = document.getElementById('btn-edit-profile');
   if (editProfileBtn) {
     editProfileBtn.addEventListener('click', () => {
@@ -1875,6 +1933,116 @@ function updateProfileBadgeUI() {
 }
 
 // --- Recursively Scan SD Card Folders (Lazy Scanning) ---
+// --- Helper to quickly check if a directory has at least 1 valid ROM file (v1.12.0) ---
+async function checkIfFolderHasGames(dirHandle, extensions) {
+  try {
+    for await (const entry of dirHandle.values()) {
+      if (entry.name.startsWith('.')) continue; // Skip hidden macOS/system files/folders
+      if (entry.kind === 'file') {
+        const ext = entry.name.split('.').pop().toLowerCase();
+        if (extensions.includes(ext)) {
+          return true; // Found at least one ROM file!
+        }
+      } else if (entry.kind === 'directory') {
+        // Recursively check subdirectories
+        const hasGames = await checkIfFolderHasGames(entry, extensions);
+        if (hasGames) return true;
+      }
+    }
+  } catch (err) {
+    console.error("Klasör boşluk kontrolü hatası:", err);
+  }
+  return false;
+}
+
+let isSyncingQueueRunning = false; // Guard to prevent parallel sync runs
+
+async function startBackgroundSyncQueue() {
+  if (isSyncingQueueRunning) return;
+  isSyncingQueueRunning = true;
+
+  const systemsToProcess = [];
+  for (const key in consoleData) {
+    const sys = consoleData[key];
+    if (sys.dirHandle && (sys.isCounting || sys.isSyncing)) {
+      systemsToProcess.push({ key, sys });
+    }
+  }
+
+  if (systemsToProcess.length === 0) {
+    isSyncingQueueRunning = false;
+    return;
+  }
+
+  // Show Sync Status Bar in UI
+  const syncBar = document.getElementById('sync-status-bar');
+  const syncMsg = document.getElementById('sync-status-message');
+  const syncPercent = document.getElementById('sync-status-percent');
+  const syncFill = document.getElementById('sync-progress-fill');
+
+  if (syncBar) {
+    syncBar.classList.remove('hide');
+    if (syncMsg) syncMsg.textContent = "Sistem listesi senkronize ediliyor...";
+    if (syncPercent) syncPercent.textContent = "0%";
+    if (syncFill) syncFill.style.width = "0%";
+  }
+
+  let processedCount = 0;
+  const totalToProcess = systemsToProcess.length;
+
+  for (const { key, sys } of systemsToProcess) {
+    if (!sdCardHandle) break;
+
+    // Check if system is still in active consoleData (wasn't deleted or reset)
+    if (!consoleData[key] || consoleData[key] !== sys) continue;
+
+    try {
+      if (syncMsg) {
+        syncMsg.textContent = `${sys.config.displayName} senkronize ediliyor...`;
+      }
+      
+      // Call lazy load with forceSync = true
+      await lazyLoadAndSyncConsole(sys, true);
+
+      // Reset indicators
+      sys.isCounting = false;
+      sys.isSyncing = false;
+
+      // Update UI
+      renderSidebarConsoles();
+      if (activeConsole === key) {
+        renderActiveGames();
+      }
+
+    } catch (err) {
+      console.error(`Arka plan senkronizasyon hatası (${key}):`, err);
+    }
+
+    processedCount++;
+    const percentage = Math.round((processedCount / totalToProcess) * 100);
+    if (syncPercent) syncPercent.textContent = `${percentage}%`;
+    if (syncFill) syncFill.style.width = `${percentage}%`;
+  }
+
+  // Sync complete
+  if (syncMsg) {
+    syncMsg.textContent = "Eşitleme tamamlandı";
+  }
+  if (syncFill) {
+    syncFill.style.width = "100%";
+  }
+  if (syncPercent) {
+    syncPercent.textContent = "100%";
+  }
+
+  setTimeout(() => {
+    if (syncBar) {
+      syncBar.classList.add('hide');
+    }
+    isSyncingQueueRunning = false;
+  }, 3000);
+}
+
 async function scanSDCardDirectories() {
   Logger.info("SD Kart dizinleri taranıyor...");
   consoleData = {};
@@ -1888,7 +2056,10 @@ async function scanSDCardDirectories() {
       xmlFileHandle: null,
       gamelistXML: null,
       sqliteDB: null,
-      isFullyLoaded: false
+      isFullyLoaded: false,
+      isCounting: false,
+      isSyncing: false,
+      loadingPromise: null
     };
   }
 
@@ -1977,11 +2148,36 @@ async function scanSDCardDirectories() {
         const cachedGames = await loadGamesCache(matchedConsoleKey);
         if (cachedGames && Array.isArray(cachedGames)) {
           system.games = cachedGames;
+          system.isFullyLoaded = true; // Set to true so user can view it instantly
+          system.isSyncing = true;     // Flag to background sync
           Logger.info(`[Önbellek] '${system.config.displayName}' için ${cachedGames.length} oyun IndexedDB'den yüklendi.`);
           console.log(`[IndexedDB Cache] '${matchedConsoleKey}' için ${cachedGames.length} oyun önbellekten yüklendi.`);
+        } else {
+          // No cache (Scenario 1) - check if folder has games quickly
+          const hasGames = await checkIfFolderHasGames(dirEntry, system.config.extensions);
+          if (hasGames) {
+            system.games = [];
+            system.isCounting = true;
+          } else if (showEmptySystems) {
+            system.games = [];
+            system.isFullyLoaded = true;
+          } else {
+            system.dirHandle = null;
+          }
         }
       } catch (cacheErr) {
         console.warn(`[IndexedDB Cache] '${matchedConsoleKey}' önbelleği okunurken hata:`, cacheErr);
+        // Fallback to checking if folder has games
+        const hasGames = await checkIfFolderHasGames(dirEntry, system.config.extensions);
+        if (hasGames) {
+          system.games = [];
+          system.isCounting = true;
+        } else if (showEmptySystems) {
+          system.games = [];
+          system.isFullyLoaded = true;
+        } else {
+          system.dirHandle = null;
+        }
       }
     }
   }
@@ -1999,6 +2195,9 @@ async function scanSDCardDirectories() {
 
   // Render Sidebar
   renderSidebarConsoles();
+
+  // Start background counting and sync queue (v1.12.0)
+  startBackgroundSyncQueue();
 }
 
 // --- Scan ROM files inside a specific Console Directory Recursively (v1.11.0) ---
@@ -2358,8 +2557,8 @@ function renderSidebarConsoles() {
     const coveredCount = sys.games.filter(g => g.image !== "").length;
     totalCovered += coveredCount;
 
-    // Hide empty systems if showEmptySystems is false
-    if (sys.isFullyLoaded && gameCount === 0 && !showEmptySystems) {
+    // Hide empty systems if showEmptySystems is false (but only if not actively syncing/counting)
+    if (sys.isFullyLoaded && !sys.isCounting && !sys.isSyncing && gameCount === 0 && !showEmptySystems) {
       continue;
     }
 
@@ -2417,12 +2616,20 @@ function renderSidebarConsoles() {
       const item = document.createElement('li');
       item.className = `console-item ${activeConsole === itemData.key ? 'active' : ''}`;
       item.setAttribute('data-console', itemData.key);
+      
+      let badgeContent = "";
+      if (itemData.sys.isCounting) {
+        badgeContent = `<span class="badge-spinner"></span>`;
+      } else {
+        badgeContent = itemData.gameCount;
+      }
+
       item.innerHTML = `
         <div class="console-info">
           <span class="console-logo">${itemData.sys.config.logo}</span>
           <span class="console-name">${itemData.sys.config.displayName}</span>
         </div>
-        <span class="console-badge">${itemData.gameCount}</span>
+        <span class="console-badge">${badgeContent}</span>
       `;
 
       item.addEventListener('click', () => {
@@ -2461,98 +2668,112 @@ function renderGamesLoadingState(consoleName) {
 }
 
 // --- Lazy Load & Reconcile Sync for Console games ---
-async function lazyLoadAndSyncConsole(system) {
-  if (system.isFullyLoaded) return;
+async function lazyLoadAndSyncConsole(system, forceSync = false) {
+  if (system.isFullyLoaded && !forceSync) return;
 
-  const extensions = system.config.extensions;
-  const dirHandle = system.dirHandle;
-  
-  let consoleKey = null;
-  for (const k in consoleData) {
-    if (consoleData[k] === system) {
-      consoleKey = k;
-      break;
-    }
-  }
-  if (!consoleKey) return;
-
-  console.log(`[Lazy Load] '${consoleKey}' klasörü taranıyor (alt klasörler dahil)...`);
-
-  // 1. Scan active files in the directory handle (recursive list)
-  const activeFiles = [];
-  const foldersSet = new Set();
-  try {
-    await scanROMFilesInDirectoryRecursive(dirHandle, extensions, [], activeFiles, foldersSet);
-  } catch (err) {
-    console.error(`[Lazy Load] '${consoleKey}' dizin okuma hatası:`, err);
-  }
-  
-  system.subfolders = Array.from(foldersSet);
-
-  // 2. Build a map of games we got from cache to retain their metadata
-  const cachedMap = new Map();
-  if (system.games && Array.isArray(system.games)) {
-    for (const game of system.games) {
-      cachedMap.set(game.filename.toLowerCase(), game);
-    }
+  if (system.loadingPromise) {
+    return system.loadingPromise;
   }
 
-  // 3. Reconcile scanned files against cache
-  const syncedGames = [];
-  
-  for (const fileObj of activeFiles) {
-    const fileEntry = fileObj.entry;
-    const relPathLower = fileObj.relativePath.toLowerCase();
+  system.loadingPromise = (async () => {
+    const extensions = system.config.extensions;
+    const dirHandle = system.dirHandle;
     
-    if (cachedMap.has(relPathLower)) {
-      const cachedGame = cachedMap.get(relPathLower);
-      cachedGame.fileHandle = fileEntry; // Restore active FileSystemFileHandle
-      cachedGame.subpath = fileObj.subpath; // Ensure subpath is set
-      syncedGames.push(cachedGame);
-    } else {
-      // New ROM found!
-      const ext = fileEntry.name.split('.').pop().toLowerCase();
-      syncedGames.push({
-        filename: fileObj.relativePath, // Save full relative path (e.g. Full Collection/Game.gb)
-        extension: ext,
-        fileHandle: fileEntry,
-        title: formatFilenameToTitle(fileEntry.name), // Base name for title
-        subpath: fileObj.subpath,
-        rating: "",
-        releasedate: "",
-        developer: "",
-        publisher: "",
-        genre: "",
-        players: "",
-        description: "",
-        image: "",
-        localImagePath: "",
-        video: "",
-        isScraped: false,
-        scrapedImageBlob: null
-      });
+    let consoleKey = null;
+    for (const k in consoleData) {
+      if (consoleData[k] === system) {
+        consoleKey = k;
+        break;
+      }
     }
-  }
+    if (!consoleKey) return;
 
-  system.games = syncedGames;
+    console.log(`[Lazy Load] '${consoleKey}' klasörü taranıyor (alt klasörler dahil)...`);
 
-  // 4. Load XML or SQLite database to overlay metadata from SD card
+    // 1. Scan active files in the directory handle (recursive list)
+    const activeFiles = [];
+    const foldersSet = new Set();
+    try {
+      await scanROMFilesInDirectoryRecursive(dirHandle, extensions, [], activeFiles, foldersSet);
+    } catch (err) {
+      console.error(`[Lazy Load] '${consoleKey}' dizin okuma hatası:`, err);
+    }
+    
+    system.subfolders = Array.from(foldersSet);
+
+    // 2. Build a map of games we got from cache to retain their metadata
+    const cachedMap = new Map();
+    if (system.games && Array.isArray(system.games)) {
+      for (const game of system.games) {
+        cachedMap.set(game.filename.toLowerCase(), game);
+      }
+    }
+
+    // 3. Reconcile scanned files against cache
+    const syncedGames = [];
+    
+    for (const fileObj of activeFiles) {
+      const fileEntry = fileObj.entry;
+      const relPathLower = fileObj.relativePath.toLowerCase();
+      
+      if (cachedMap.has(relPathLower)) {
+        const cachedGame = cachedMap.get(relPathLower);
+        cachedGame.fileHandle = fileEntry; // Restore active FileSystemFileHandle
+        cachedGame.subpath = fileObj.subpath; // Ensure subpath is set
+        syncedGames.push(cachedGame);
+      } else {
+        // New ROM found!
+        const ext = fileEntry.name.split('.').pop().toLowerCase();
+        syncedGames.push({
+          filename: fileObj.relativePath, // Save full relative path (e.g. Full Collection/Game.gb)
+          extension: ext,
+          fileHandle: fileEntry,
+          title: formatFilenameToTitle(fileEntry.name), // Base name for title
+          subpath: fileObj.subpath,
+          rating: "",
+          releasedate: "",
+          developer: "",
+          publisher: "",
+          genre: "",
+          players: "",
+          description: "",
+          image: "",
+          localImagePath: "",
+          video: "",
+          isScraped: false,
+          scrapedImageBlob: null
+        });
+      }
+    }
+
+    system.games = syncedGames;
+
+    // 4. Load XML or SQLite database to overlay metadata from SD card
+    try {
+      if (currentProfile.metadataStorage === 'sqlite') {
+        await tryLoadOrCreateSqliteDB(system);
+      } else {
+        await loadOrCreateGamelistXML(system);
+      }
+    } catch (dbErr) {
+      console.error(`[Lazy Load] '${consoleKey}' metadata okuma hatası:`, dbErr);
+    }
+
+    // 5. Save synced data back to IndexedDB cache
+    await saveGamesCache(consoleKey, system.games);
+
+    // 6. Mark as fully loaded
+    system.isFullyLoaded = true;
+    system.isCounting = false;
+    system.isSyncing = false;
+    console.log(`[Lazy Load] '${consoleKey}' başarıyla yüklendi. Oyun sayısı: ${system.games.length}`);
+  })();
+
   try {
-    if (currentProfile.metadataStorage === 'sqlite') {
-      await tryLoadOrCreateSqliteDB(system);
-    } else {
-      await loadOrCreateGamelistXML(system);
-    }
-  } catch (dbErr) {
-    console.error(`[Lazy Load] '${consoleKey}' metadata okuma hatası:`, dbErr);
+    await system.loadingPromise;
+  } finally {
+    system.loadingPromise = null;
   }
-
-  // 5. Save synced data back to IndexedDB cache
-  await saveGamesCache(consoleKey, system.games);
-
-  // 6. Mark as fully loaded
-  system.isFullyLoaded = true;
-  console.log(`[Lazy Load] '${consoleKey}' başarıyla yüklendi. Oyun sayısı: ${system.games.length}`);
 }
 
 // --- Activate Console Category ---
