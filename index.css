@@ -243,11 +243,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 15px;
+  padding: 3px 6px;
   margin-bottom: 8px;
   border-radius: 8px;
-  background: rgba(22, 25, 37, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.03);
   cursor: pointer;
   transition: var(--transition-smooth);
 }
@@ -276,7 +274,7 @@ body {
 }
 .console-name {
   font-weight: 600;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   letter-spacing: 0.5px;
 }
 .console-badge {
