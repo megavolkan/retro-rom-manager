@@ -57,7 +57,7 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-curl_setopt($ch, CURLOPT_USERAGENT, 'retromgr/1.9.0');
+curl_setopt($ch, CURLOPT_USERAGENT, 'retromgr/1.11.0');
 curl_setopt($ch, CURLOPT_TIMEOUT, 15); // 15 saniye zaman aşımı
 
 $response = curl_exec($ch);
