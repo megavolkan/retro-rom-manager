@@ -16,6 +16,75 @@ let activeFilters = {
 };
 let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
 let showDuplicatesOnly = false;      // Toggle to show duplicate ROMs grouped
+let currentSubpath = "";             // Currently navigated subfolder relative to console root
+
+// --- Helper to resolve direct subfolders under a given currentSubpath (v1.11.0) ---
+function getDirectSubfolders(subfolders, currentPath) {
+  const direct = new Set();
+  const currentPrefix = currentPath ? currentPath + '/' : '';
+  
+  for (const folder of subfolders) {
+    if (currentPath === "") {
+      // Root level - get first part of folder path
+      const firstPart = folder.split('/')[0];
+      if (firstPart) direct.add(firstPart);
+    } else {
+      // Subpath level - check if folder starts with prefix and get the next part
+      if (folder.startsWith(currentPrefix)) {
+        const remaining = folder.substring(currentPrefix.length);
+        if (remaining) {
+          const nextPart = remaining.split('/')[0];
+          if (nextPart) direct.add(currentPrefix + nextPart);
+        }
+      }
+    }
+  }
+  return Array.from(direct);
+}
+
+// --- Helper to generate Breadcrumb HTML for folder navigation (v1.11.0) ---
+function generateBreadcrumbHtml(system) {
+  const systemName = system.config.displayName;
+  let html = `<div class="breadcrumb-container">`;
+  
+  const isActiveRoot = currentSubpath === "";
+  html += `
+    <span class="breadcrumb-item ${isActiveRoot ? 'active' : ''}" data-path="">
+      🎮 ${systemName}
+    </span>
+  `;
+  
+  if (currentSubpath) {
+    const parts = currentSubpath.split('/');
+    let cumulativePath = "";
+    for (let i = 0; i < parts.length; i++) {
+      cumulativePath += (cumulativePath ? '/' : '') + parts[i];
+      const isLast = i === parts.length - 1;
+      html += `<span class="breadcrumb-separator">➔</span>`;
+      html += `
+        <span class="breadcrumb-item ${isLast ? 'active' : ''}" data-path="${cumulativePath}">
+          ${parts[i]}
+        </span>
+      `;
+    }
+  }
+  
+  html += `</div>`;
+  return html;
+}
+
+// --- Helper to resolve directory handle for a nested subpath (v1.11.0) ---
+async function resolveSubpathDirectoryHandle(systemDirHandle, subpath) {
+  if (!subpath) return systemDirHandle;
+  const parts = subpath.split('/');
+  let currentHandle = systemDirHandle;
+  for (const part of parts) {
+    if (part) {
+      currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+    }
+  }
+  return currentHandle;
+}
 
 // --- Helper to resolve matching system folder name symmetrically ---
 function getSystemFolderName(system) {
@@ -1932,34 +2001,28 @@ async function scanSDCardDirectories() {
   renderSidebarConsoles();
 }
 
-// --- Scan ROM files inside a specific Console Directory ---
-async function scanROMFilesInDirectory(system) {
-  const extensions = system.config.extensions;
-  const dirHandle = system.dirHandle;
-
+// --- Scan ROM files inside a specific Console Directory Recursively (v1.11.0) ---
+async function scanROMFilesInDirectoryRecursive(dirHandle, extensions, relativePathParts = [], activeFiles = [], foldersSet = new Set()) {
   for await (const entry of dirHandle.values()) {
+    if (entry.name.startsWith('.')) continue; // Skip hidden macOS/system files/folders
+    
     if (entry.kind === 'file') {
-      if (entry.name.startsWith('.')) continue; // Skip hidden macOS AppleDouble and system files
       const ext = entry.name.split('.').pop().toLowerCase();
       if (extensions.includes(ext)) {
-        system.games.push({
-          filename: entry.name,
-          extension: ext,
-          fileHandle: entry,
-          // Placeholder initial metadata
-          title: formatFilenameToTitle(entry.name),
-          rating: "",
-          releasedate: "",
-          developer: "",
-          publisher: "",
-          genre: "",
-          players: "",
-          description: "",
-          image: "", // Will hold URL or Local Blob Object URL
-          localImagePath: "", // Path stored in XML
-          isScraped: false,
-          scrapedImageBlob: null
+        const relativePath = [...relativePathParts, entry.name].join('/');
+        activeFiles.push({
+          entry: entry,
+          relativePath: relativePath,
+          subpath: relativePathParts.join('/')
         });
+      }
+    } else if (entry.kind === 'directory') {
+      const dirPath = [...relativePathParts, entry.name].join('/');
+      foldersSet.add(dirPath);
+      try {
+        await scanROMFilesInDirectoryRecursive(entry, extensions, [...relativePathParts, entry.name], activeFiles, foldersSet);
+      } catch (err) {
+        console.error(`Alt klasör tarama hatası: ${dirPath}`, err);
       }
     }
   }
@@ -2413,23 +2476,18 @@ async function lazyLoadAndSyncConsole(system) {
   }
   if (!consoleKey) return;
 
-  console.log(`[Lazy Load] '${consoleKey}' klasörü taranıyor...`);
+  console.log(`[Lazy Load] '${consoleKey}' klasörü taranıyor (alt klasörler dahil)...`);
 
-  // 1. Scan active files in the directory handle (fast list)
+  // 1. Scan active files in the directory handle (recursive list)
   const activeFiles = [];
+  const foldersSet = new Set();
   try {
-    for await (const entry of dirHandle.values()) {
-      if (entry.kind === 'file') {
-        if (entry.name.startsWith('.')) continue; // Skip hidden macOS system files
-        const ext = entry.name.split('.').pop().toLowerCase();
-        if (extensions.includes(ext)) {
-          activeFiles.push(entry);
-        }
-      }
-    }
+    await scanROMFilesInDirectoryRecursive(dirHandle, extensions, [], activeFiles, foldersSet);
   } catch (err) {
     console.error(`[Lazy Load] '${consoleKey}' dizin okuma hatası:`, err);
   }
+  
+  system.subfolders = Array.from(foldersSet);
 
   // 2. Build a map of games we got from cache to retain their metadata
   const cachedMap = new Map();
@@ -2442,20 +2500,24 @@ async function lazyLoadAndSyncConsole(system) {
   // 3. Reconcile scanned files against cache
   const syncedGames = [];
   
-  for (const fileEntry of activeFiles) {
-    const fileLower = fileEntry.name.toLowerCase();
-    if (cachedMap.has(fileLower)) {
-      const cachedGame = cachedMap.get(fileLower);
+  for (const fileObj of activeFiles) {
+    const fileEntry = fileObj.entry;
+    const relPathLower = fileObj.relativePath.toLowerCase();
+    
+    if (cachedMap.has(relPathLower)) {
+      const cachedGame = cachedMap.get(relPathLower);
       cachedGame.fileHandle = fileEntry; // Restore active FileSystemFileHandle
+      cachedGame.subpath = fileObj.subpath; // Ensure subpath is set
       syncedGames.push(cachedGame);
     } else {
       // New ROM found!
       const ext = fileEntry.name.split('.').pop().toLowerCase();
       syncedGames.push({
-        filename: fileEntry.name,
+        filename: fileObj.relativePath, // Save full relative path (e.g. Full Collection/Game.gb)
         extension: ext,
         fileHandle: fileEntry,
-        title: formatFilenameToTitle(fileEntry.name),
+        title: formatFilenameToTitle(fileEntry.name), // Base name for title
+        subpath: fileObj.subpath,
         rating: "",
         releasedate: "",
         developer: "",
@@ -2496,6 +2558,7 @@ async function lazyLoadAndSyncConsole(system) {
 // --- Activate Console Category ---
 async function activateConsoleCategory(key) {
   activeConsole = key;
+  currentSubpath = ""; // Reset folder navigation back to console root
 
   // Clear bulk selections
   selectedRomsBulk = [];
@@ -2587,7 +2650,7 @@ function renderActiveGames() {
   // Filter games based on search and cover status
   let filteredGames = system.games.filter(game => {
     const matchesSearch = game.filename.toLowerCase().includes(activeFilters.search) || 
-                          game.title.toLowerCase().includes(activeFilters.search);
+                          (game.title && game.title.toLowerCase().includes(activeFilters.search));
     const matchesCover = activeFilters.missingCover ? game.image === "" : true;
     return matchesSearch && matchesCover;
   });
@@ -2597,22 +2660,83 @@ function renderActiveGames() {
     return;
   }
 
-  if (filteredGames.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <span class="empty-icon">🔍</span>
-        <h3 class="empty-title">Oyun Bulunamadı</h3>
-        <p class="empty-desc">Filtrelerinize uygun ROM dosyası bu konsol klasöründe bulunmamaktadır.</p>
-      </div>
+  // Clear container at the start
+  container.innerHTML = '';
+
+  // Render Breadcrumb (only if not searching)
+  if (!activeFilters.search) {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = generateBreadcrumbHtml(system);
+    const breadcrumb = tempDiv.firstElementChild;
+    container.appendChild(breadcrumb);
+    
+    // Bind breadcrumb click listeners
+    breadcrumb.querySelectorAll('.breadcrumb-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const path = item.getAttribute('data-path');
+        currentSubpath = path;
+        clearInspector();
+        renderActiveGames();
+      });
+    });
+  }
+
+  // Build folder/file display items
+  let displayItems = [];
+
+  if (!activeFilters.search) {
+    const directSubfolders = getDirectSubfolders(system.subfolders || [], currentSubpath);
+    const gamesInFolder = filteredGames.filter(game => (game.subpath || "") === currentSubpath);
+
+    // Parent folder navigation ".."
+    if (currentSubpath !== "") {
+      const idx = currentSubpath.lastIndexOf('/');
+      const parentPath = idx !== -1 ? currentSubpath.substring(0, idx) : "";
+      displayItems.push({
+        isDirectory: true,
+        isParent: true,
+        path: parentPath,
+        title: ".."
+      });
+    }
+
+    // Direct subdirectories
+    for (const folder of directSubfolders) {
+      displayItems.push({
+        isDirectory: true,
+        isParent: false,
+        path: folder,
+        title: folder.split('/').pop()
+      });
+    }
+
+    // Games in the current folder
+    for (const game of gamesInFolder) {
+      displayItems.push(game);
+    }
+  } else {
+    // Global search - show all matching games flat
+    displayItems = filteredGames;
+  }
+
+  if (displayItems.length === 0) {
+    // Append empty state below breadcrumb (if breadcrumb is present)
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML = `
+      <span class="empty-icon">🔍</span>
+      <h3 class="empty-title">Boş Dizin</h3>
+      <p class="empty-desc">Bu klasörde veya arama filtrelerinizde herhangi bir ROM dosyası bulunmamaktadır.</p>
     `;
+    container.appendChild(empty);
     return;
   }
 
   // Render according to View Mode (Grid or List)
   if (currentViewMode === 'grid') {
-    renderGridView(container, filteredGames);
+    renderGridView(container, displayItems);
   } else {
-    renderListView(container, filteredGames);
+    renderListView(container, displayItems);
   }
 }
 
@@ -2683,6 +2807,34 @@ function renderGridView(container, games) {
   const system = consoleData[activeConsole];
 
   games.forEach(game => {
+    if (game.isDirectory) {
+      const card = document.createElement('div');
+      card.className = 'rom-card is-directory';
+      
+      card.innerHTML = `
+        <div class="boxart-wrapper" style="display:flex; align-items:center; justify-content:center; width:100%; height:100%; position:relative">
+          <div class="folder-icon-placeholder">
+            ${game.isParent ? '🔙' : '📁'}
+          </div>
+        </div>
+        <div class="rom-info">
+          <h4 class="rom-title" title="${game.title}">${game.title}</h4>
+          <div class="rom-system-ext">
+            <span>Klasör</span>
+          </div>
+        </div>
+      `;
+      
+      card.addEventListener('click', () => {
+        currentSubpath = game.path;
+        clearInspector();
+        renderActiveGames();
+      });
+      
+      grid.appendChild(card);
+      return;
+    }
+
     const card = document.createElement('div');
     card.className = `rom-card ${selectedRom === game ? 'active' : ''}`;
     
@@ -2770,7 +2922,10 @@ function renderGridView(container, games) {
     grid.appendChild(card);
   });
 
-  container.innerHTML = '';
+  const oldGrid = container.querySelector('.rom-grid');
+  if (oldGrid) oldGrid.remove();
+  const oldList = container.querySelector('.rom-list-layout');
+  if (oldList) oldList.remove();
   container.appendChild(grid);
 }
 
@@ -2782,6 +2937,32 @@ function renderListView(container, games) {
   const system = consoleData[activeConsole];
 
   games.forEach(game => {
+    if (game.isDirectory) {
+      const row = document.createElement('div');
+      row.className = 'rom-row-item is-directory';
+      
+      row.innerHTML = `
+        <div class="row-left">
+          <div class="row-icon-wrapper" style="display:flex; align-items:center; justify-content:center">
+            ${game.isParent ? '🔙' : '📁'}
+          </div>
+          <span class="row-name">${game.title}</span>
+        </div>
+        <div class="row-right">
+          <span class="row-badge">Klasör</span>
+        </div>
+      `;
+      
+      row.addEventListener('click', () => {
+        currentSubpath = game.path;
+        clearInspector();
+        renderActiveGames();
+      });
+      
+      list.appendChild(row);
+      return;
+    }
+
     const row = document.createElement('div');
     row.className = `rom-row-item ${selectedRom === game ? 'active' : ''}`;
 
@@ -2865,7 +3046,10 @@ function renderListView(container, games) {
     list.appendChild(row);
   });
 
-  container.innerHTML = '';
+  const oldGrid = container.querySelector('.rom-grid');
+  if (oldGrid) oldGrid.remove();
+  const oldList = container.querySelector('.rom-list-layout');
+  if (oldList) oldList.remove();
   container.appendChild(list);
 }
 
@@ -4934,6 +5118,14 @@ function setupDragAndDrop() {
     const extensions = system.config.extensions;
     let addedCount = 0;
 
+    // Resolve target subdirectory handle based on currentSubpath (v1.11.0)
+    let targetDirHandle = system.dirHandle;
+    try {
+      targetDirHandle = await resolveSubpathDirectoryHandle(system.dirHandle, currentSubpath);
+    } catch (err) {
+      console.error("Hedef klasör dizini çözülemedi, kök dizin kullanılacak:", err);
+    }
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const ext = file.name.split('.').pop().toLowerCase();
@@ -4943,7 +5135,7 @@ function setupDragAndDrop() {
           // Check if file already exists
           let fileHandle;
           try {
-            fileHandle = await system.dirHandle.getFileHandle(file.name, { create: false });
+            fileHandle = await targetDirHandle.getFileHandle(file.name, { create: false });
             // If yes, ask for overwrite or rename
             const overwrite = confirm(`"${file.name}" zaten mevcut. Üzerine yazmak istiyor musunuz?`);
             if (!overwrite) continue;
@@ -4952,17 +5144,19 @@ function setupDragAndDrop() {
           }
 
           // Write ROM file directly into SD Card console directory!
-          fileHandle = await system.dirHandle.getFileHandle(file.name, { create: true });
+          fileHandle = await targetDirHandle.getFileHandle(file.name, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(file);
           await writable.close();
 
           // Push into JS state
+          const newGameFilename = currentSubpath ? `${currentSubpath}/${file.name}` : file.name;
           const newGame = {
-            filename: file.name,
+            filename: newGameFilename,
             extension: ext,
             fileHandle: fileHandle,
             title: formatFilenameToTitle(file.name),
+            subpath: currentSubpath,
             rating: "",
             releasedate: "",
             developer: "",

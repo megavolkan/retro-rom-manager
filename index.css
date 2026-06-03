@@ -2095,3 +2095,88 @@ body.image-fit-cover .match-thumb {
   box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
   transform: translateY(-2px);
 }
+
+/* Directory Styling (v1.11.0) */
+.rom-card.is-directory {
+  border-color: hsl(var(--retro-cyan) / 0.3);
+}
+.rom-card.is-directory:hover {
+  border-color: hsl(var(--retro-cyan));
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4), var(--neon-glow-cyan);
+}
+.rom-card.is-directory.active {
+  border-color: hsl(var(--retro-cyan));
+  background: rgba(0, 243, 255, 0.1);
+  box-shadow: var(--neon-glow-cyan);
+}
+
+.rom-row-item.is-directory {
+  border-color: hsl(var(--retro-cyan) / 0.15);
+}
+.rom-row-item.is-directory:hover {
+  border-color: hsl(var(--retro-cyan) / 0.5);
+  box-shadow: var(--neon-glow-cyan);
+}
+.rom-row-item.is-directory.active {
+  border-color: hsl(var(--retro-cyan));
+  background: rgba(0, 243, 255, 0.08);
+  box-shadow: var(--neon-glow-cyan);
+}
+
+.folder-icon-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--retro-cyan));
+  font-size: 3rem;
+  width: 100%;
+  height: 100%;
+  background: rgba(13, 14, 21, 0.8);
+  text-shadow: 0 0 10px rgba(0, 243, 255, 0.4);
+}
+.rom-row-item.is-directory .row-icon-wrapper {
+  color: hsl(var(--retro-cyan));
+  font-size: 1.25rem;
+  text-shadow: 0 0 6px rgba(0, 243, 255, 0.4);
+}
+
+/* Breadcrumb Navigation */
+.breadcrumb-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin-bottom: 15px;
+  font-size: 0.8rem;
+  font-family: var(--font-tech);
+  color: hsl(var(--text-secondary));
+  box-shadow: var(--card-shadow);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.breadcrumb-item {
+  color: hsl(var(--text-secondary));
+  cursor: pointer;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.breadcrumb-item:hover {
+  color: #fff;
+}
+.breadcrumb-item.active {
+  color: hsl(var(--retro-cyan));
+  text-shadow: 0 0 8px rgba(0, 243, 255, 0.3);
+  font-weight: bold;
+  cursor: default;
+  pointer-events: none;
+}
+.breadcrumb-separator {
+  color: rgba(255, 255, 255, 0.2);
+  margin: 0 4px;
+}
