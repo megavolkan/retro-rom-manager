@@ -17,6 +17,7 @@ let activeFilters = {
 let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
 let showDuplicatesOnly = false;      // Toggle to show duplicate ROMs grouped
 let currentSubpath = "";             // Currently navigated subfolder relative to console root
+const IGNORED_FOLDER_NAMES = ['images', 'videos', 'media', 'downloaded_images', 'downloaded_videos'];
 
 // --- Helper to resolve direct subfolders under a given currentSubpath (v1.11.0) ---
 function getDirectSubfolders(subfolders, currentPath) {
@@ -1992,6 +1993,9 @@ async function checkIfFolderHasGames(dirHandle, extensions) {
           return true; // Found at least one ROM file!
         }
       } else if (entry.kind === 'directory') {
+        if (IGNORED_FOLDER_NAMES.includes(entry.name.toLowerCase())) {
+          continue;
+        }
         // Recursively check subdirectories
         const hasGames = await checkIfFolderHasGames(entry, extensions);
         if (hasGames) return true;
@@ -2264,6 +2268,9 @@ async function scanROMFilesInDirectoryRecursive(dirHandle, extensions, relativeP
         });
       }
     } else if (entry.kind === 'directory') {
+      if (IGNORED_FOLDER_NAMES.includes(entry.name.toLowerCase())) {
+        continue;
+      }
       const dirPath = [...relativePathParts, entry.name].join('/');
       foldersSet.add(dirPath);
       try {
