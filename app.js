@@ -512,9 +512,25 @@ const CONSOLE_CONFIGS = {
     extensions: ['n64', 'z64', 'v64', 'zip'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   },
+  fba: {
+    id: 'fba',
+    names: ['fba'],
+    displayName: 'FinalBurn Alpha',
+    logo: '👾',
+    extensions: ['zip', '7z'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  fbneo: {
+    id: 'fbneo',
+    names: ['fbneo'],
+    displayName: 'FinalBurn Neo',
+    logo: '👾',
+    extensions: ['zip', '7z'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
   cps1: {
     id: 'cps1',
-    names: ['cps1', 'cps', 'capcom1'],
+    names: ['cps1'],
     displayName: 'Capcom CPS1',
     logo: '🥋',
     extensions: ['zip', '7z'],
@@ -522,7 +538,7 @@ const CONSOLE_CONFIGS = {
   },
   cps2: {
     id: 'cps2',
-    names: ['cps2', 'capcom2'],
+    names: ['cps2'],
     displayName: 'Capcom CPS2',
     logo: '🛡️',
     extensions: ['zip', '7z'],
@@ -530,15 +546,47 @@ const CONSOLE_CONFIGS = {
   },
   cps3: {
     id: 'cps3',
-    names: ['cps3', 'capcom3'],
+    names: ['cps3'],
     displayName: 'Capcom CPS3',
     logo: '⚡',
     extensions: ['zip', '7z'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
   },
+  mame: {
+    id: 'mame',
+    names: ['mame'],
+    displayName: 'MAME',
+    logo: '👾',
+    extensions: ['zip', '7z'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  mame2003plus: {
+    id: 'mame2003plus',
+    names: ['mame2003plus'],
+    displayName: 'MAME 2003 Plus',
+    logo: '👾',
+    extensions: ['zip', '7z'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  mame2010: {
+    id: 'mame2010',
+    names: ['mame2010'],
+    displayName: 'MAME 2010',
+    logo: '👾',
+    extensions: ['zip', '7z'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
+  pgm: {
+    id: 'pgm',
+    names: ['pgm'],
+    displayName: 'PGM',
+    logo: '👾',
+    extensions: ['zip', '7z'],
+    defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
+  },
   neogeo: {
     id: 'neogeo',
-    names: ['neogeo', 'neo-geo', 'mvs'],
+    names: ['neogeo'],
     displayName: 'Neo Geo',
     logo: '👑',
     extensions: ['zip', '7z'],
@@ -546,8 +594,8 @@ const CONSOLE_CONFIGS = {
   },
   arcade: {
     id: 'arcade',
-    names: ['arcade', 'mame', 'fba', 'fbneo'],
-    displayName: 'Arcade / MAME',
+    names: ['arcade'],
+    displayName: 'Arcade',
     logo: '👾',
     extensions: ['zip', '7z'],
     defaultCart: 'https://images.unsplash.com/photo-1531525645387-7f14be1bdbbd?w=150&auto=format&fit=crop&q=60'
@@ -946,7 +994,7 @@ function getConsoleManufacturer(consoleId) {
   if (['atari', 'atari2600', 'atari5200', 'atari7800', 'atarist', 'lynx'].includes(cid)) {
     return { name: 'Atari', logo: '🕹️' };
   }
-  if (['neogeo', 'neogeopocket', 'ngpc', 'ngp'].includes(cid)) {
+  if (['neogeopocket', 'ngpc', 'ngp'].includes(cid)) {
     return { name: 'SNK', logo: '⚡' };
   }
   if (['pcengine', 'tg16', 'pce', 'tgcd'].includes(cid)) {
@@ -2592,7 +2640,7 @@ function renderSidebarConsoles() {
         <span class="manuf-name">${group.name}</span>
       </div>
       <div style="display:flex; align-items:center; gap:8px">
-        <span class="manuf-count">${group.totalGames} OYUN</span>
+        <span class="manuf-count">${group.totalGames}</span>
         <span class="collapse-toggle">${isCollapsed ? '+' : '-'}</span>
       </div>
     `;
@@ -3874,6 +3922,11 @@ const SCREENSCRAPER_SYSTEM_IDS = {
   'pcengine': 31,
   'arcade': 75,
   'mame': 75,
+  'mame2003plus': 75,
+  'mame2010': 75,
+  'fba': 75,
+  'fbneo': 75,
+  'pgm': 75,
   'neogeo': 142,
   'cps1': 75,
   'cps2': 75,
