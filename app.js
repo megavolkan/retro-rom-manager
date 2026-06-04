@@ -18,6 +18,34 @@ let showEmptySystems = false;       // Toggle to show/hide systems with 0 roms
 let showDuplicatesOnly = false;      // Toggle to show duplicate ROMs grouped
 let currentSubpath = "";             // Currently navigated subfolder relative to console root
 const IGNORED_FOLDER_NAMES = ['images', 'videos', 'media', 'downloaded_images', 'downloaded_videos'];
+const IGNORED_BIOS_FILENAMES = [
+  'neogeo.zip', 'neogeo.7z',
+  'pgm.zip', 'pgm.7z',
+  'awbios.zip', 'awbios.7z',
+  'naomi.zip', 'naomi.7z',
+  'naomiboot.zip', 'naomiboot.7z',
+  'naomi2.zip', 'naomi2.7z',
+  'hikaru.zip', 'hikaru.7z',
+  'decocass.zip', 'decocass.7z',
+  'skns.zip', 'skns.7z',
+  'sys246.zip', 'sys246.7z',
+  'sys256.zip', 'sys256.7z',
+  'namcoc78.zip', 'namcoc78.7z',
+  'namcoc86.zip', 'namcoc86.7z',
+  'konamih.zip', 'konamih.7z',
+  'cpzn1.zip', 'cpzn1.7z',
+  'cpzn2.zip', 'cpzn2.7z',
+  'zn.zip', 'zn.7z',
+  'taitofx1.zip', 'taitofx1.7z',
+  'taitogn.zip', 'taitogn.7z',
+  'isdecocass.zip', 'isdecocass.7z',
+  'playchoice.zip', 'playchoice.7z',
+  'nss.zip', 'nss.7z',
+  'stvbios.zip', 'stvbios.7z',
+  'pokerby.zip', 'pokerby.7z',
+  'galgbios.zip', 'galgbios.7z',
+  'segaboot.zip', 'segaboot.7z'
+];
 
 // --- Helper to resolve direct subfolders under a given currentSubpath (v1.11.0) ---
 function getDirectSubfolders(subfolders, currentPath) {
@@ -2123,6 +2151,9 @@ async function checkIfFolderHasGames(dirHandle, extensions) {
     for await (const entry of dirHandle.values()) {
       if (entry.name.startsWith('.')) continue; // Skip hidden macOS/system files/folders
       if (entry.kind === 'file') {
+        const lowerName = entry.name.toLowerCase();
+        if (IGNORED_BIOS_FILENAMES.includes(lowerName)) continue; // Skip BIOS/system files
+        
         const ext = entry.name.split('.').pop().toLowerCase();
         if (extensions.includes(ext)) {
           return true; // Found at least one ROM file!
@@ -2393,6 +2424,9 @@ async function scanROMFilesInDirectoryRecursive(dirHandle, extensions, relativeP
     if (entry.name.startsWith('.')) continue; // Skip hidden macOS/system files/folders
     
     if (entry.kind === 'file') {
+      const lowerName = entry.name.toLowerCase();
+      if (IGNORED_BIOS_FILENAMES.includes(lowerName)) continue; // Skip BIOS/system files
+      
       const ext = entry.name.split('.').pop().toLowerCase();
       if (extensions.includes(ext)) {
         const relativePath = [...relativePathParts, entry.name].join('/');
