@@ -188,6 +188,24 @@
     </div>
   </div>
 
+  <!-- Modal 1.5: ROM Upload Progress -->
+  <div class="modal-overlay" id="upload-modal">
+    <div class="modal-container" style="width: 450px;">
+      <div class="modal-header">
+        <h3 class="modal-title">ROM Dosyaları Yükleniyor</h3>
+      </div>
+      <div class="modal-body">
+        <div class="scanning-loader">
+          <span class="spinning-disc">📥</span>
+          <p id="upload-progress-text" style="font-family:var(--font-tech); font-size:0.85rem">Dosyalar kopyalanıyor...</p>
+          <div class="scan-progress-bar">
+            <div class="scan-progress-fill" id="upload-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal 2: Online Scraper Match Selector -->
   <div class="modal-overlay" id="scrape-modal">
     <div class="modal-container">

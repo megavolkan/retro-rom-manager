@@ -2584,6 +2584,21 @@ function showScanProgressModal(show) {
   }
 }
 
+function showUploadProgressModal(show, text = "Dosyalar kopyalanıyor...", percentage = 0) {
+  const modal = document.getElementById('upload-modal');
+  const txt = document.getElementById('upload-progress-text');
+  const fill = document.getElementById('upload-progress-fill');
+  if (modal) {
+    modal.classList.toggle('active', show);
+  }
+  if (txt) {
+    txt.textContent = text;
+  }
+  if (fill) {
+    fill.style.width = `${percentage}%`;
+  }
+}
+
 // --- Render Sidebar Consoles ---
 function renderSidebarConsoles() {
   const listContainer = document.getElementById('console-list');
@@ -5400,71 +5415,86 @@ function setupDragAndDrop() {
       console.error("Hedef klasör dizini çözülemedi, kök dizin kullanılacak:", err);
     }
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const ext = file.name.split('.').pop().toLowerCase();
+    // Show initial progress modal
+    showUploadProgressModal(true, "Yükleme başlatılıyor...", 0);
 
-      if (extensions.includes(ext)) {
-        try {
-          // Check if file already exists
-          let fileHandle;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        // Update progress modal with current file details and percentage
+        const percentage = Math.round((i / files.length) * 100);
+        showUploadProgressModal(true, `Kopyalanıyor: ${i + 1}/${files.length} (${file.name})`, percentage);
+
+        if (extensions.includes(ext)) {
           try {
-            fileHandle = await targetDirHandle.getFileHandle(file.name, { create: false });
-            // If yes, ask for overwrite or rename
-            const overwrite = confirm(`"${file.name}" zaten mevcut. Üzerine yazmak istiyor musunuz?`);
-            if (!overwrite) continue;
-          } catch(err) {
-            // File does not exist, safe to create
+            // Check if file already exists
+            let fileHandle;
+            try {
+              fileHandle = await targetDirHandle.getFileHandle(file.name, { create: false });
+              // If yes, ask for overwrite or rename
+              const overwrite = confirm(`"${file.name}" zaten mevcut. Üzerine yazmak istiyor musunuz?`);
+              if (!overwrite) continue;
+            } catch(err) {
+              // File does not exist, safe to create
+            }
+
+            // Write ROM file directly into SD Card console directory!
+            fileHandle = await targetDirHandle.getFileHandle(file.name, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(file);
+            await writable.close();
+
+            // Push into JS state
+            const newGameFilename = currentSubpath ? `${currentSubpath}/${file.name}` : file.name;
+            const newGame = {
+              filename: newGameFilename,
+              extension: ext,
+              fileHandle: fileHandle,
+              title: formatFilenameToTitle(file.name),
+              subpath: currentSubpath,
+              rating: "",
+              releasedate: "",
+              developer: "",
+              publisher: "",
+              genre: "",
+              players: "",
+              description: "",
+              image: "",
+              localImagePath: "",
+              isScraped: false
+            };
+
+            await tryAutoDetectLocalImage(system, newGame);
+            system.games.push(newGame);
+            addedCount++;
+
+          } catch (err) {
+            console.error(`Oyun yüklenirken hata oluştu: ${file.name}`, err);
           }
-
-          // Write ROM file directly into SD Card console directory!
-          fileHandle = await targetDirHandle.getFileHandle(file.name, { create: true });
-          const writable = await fileHandle.createWritable();
-          await writable.write(file);
-          await writable.close();
-
-          // Push into JS state
-          const newGameFilename = currentSubpath ? `${currentSubpath}/${file.name}` : file.name;
-          const newGame = {
-            filename: newGameFilename,
-            extension: ext,
-            fileHandle: fileHandle,
-            title: formatFilenameToTitle(file.name),
-            subpath: currentSubpath,
-            rating: "",
-            releasedate: "",
-            developer: "",
-            publisher: "",
-            genre: "",
-            players: "",
-            description: "",
-            image: "",
-            localImagePath: "",
-            isScraped: false
-          };
-
-          await tryAutoDetectLocalImage(system, newGame);
-          system.games.push(newGame);
-          addedCount++;
-
-        } catch (err) {
-          console.error(`Oyun yüklenirken hata oluştu: ${file.name}`, err);
+        } else {
+          alert(`Uyumsuz dosya formatı: ${file.name}. Bu sistem sadece şu uzantıları kabul eder: ${extensions.join(', ')}`);
         }
-      } else {
-        alert(`Uyumsuz dosya formatı: ${file.name}. Bu sistem sadece şu uzantıları kabul eder: ${extensions.join(', ')}`);
       }
-    }
 
-    if (addedCount > 0) {
-      // Re-scan/rewrite metadata and update UI
-      if (currentProfile.metadataStorage === 'sqlite') {
-        await writeSqliteDBFile(system);
-      } else {
-        await writeGamelistXMLFile(system);
+      // Hide progress modal when writing completes
+      showUploadProgressModal(true, "Veritabanı güncelleniyor...", 100);
+
+      if (addedCount > 0) {
+        // Re-scan/rewrite metadata and update UI
+        if (currentProfile.metadataStorage === 'sqlite') {
+          await writeSqliteDBFile(system);
+        } else {
+          await writeGamelistXMLFile(system);
+        }
+        renderSidebarConsoles();
+        renderActiveGames();
+        showToast(`${addedCount} adet yeni ROM dosyası başarıyla SD kartınızdaki ${system.config.displayName} klasörüne kopyalandı!`, 'success');
       }
-      renderSidebarConsoles();
-      renderActiveGames();
-      showToast(`${addedCount} adet yeni ROM dosyası başarıyla SD kartınızdaki ${system.config.displayName} klasörüne kopyalandı!`, 'success');
+    } finally {
+      // Ensure progress modal is closed in all circumstances
+      showUploadProgressModal(false);
     }
   });
 }
