@@ -206,6 +206,45 @@
     </div>
   </div>
 
+  <!-- Modal 1.7: Move Game Modal -->
+  <div class="modal-overlay" id="move-modal">
+    <div class="modal-container" style="width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📦 Oyun(ları) Taşı</h3>
+        <button class="close-modal-btn" id="btn-close-move-modal">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:15px; padding:20px;">
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin:0;">Seçilen oyun(lar) belirtilen hedef klasöre ve ilişkili tüm medya (resim, video) dosyaları ile birlikte taşınacaktır.</p>
+        
+        <div class="form-field">
+          <label class="form-label">Hedef Sistem</label>
+          <select class="form-input" id="sel-move-target-system" style="width: 100%; background: hsl(var(--bg-panel)); color: #fff; border: 1px solid var(--glass-border); padding: 8px; border-radius: 6px;"></select>
+        </div>
+        
+        <div class="form-field">
+          <label class="form-label">Hedef Alt Klasör (Opsiyonel)</label>
+          <select class="form-input" id="sel-move-target-subfolder" style="width: 100%; background: hsl(var(--bg-panel)); color: #fff; border: 1px solid var(--glass-border); padding: 8px; border-radius: 6px;"></select>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Veya Yeni Alt Klasör Adı (Örn: RPG/Japonca)</label>
+          <input type="text" class="form-input" id="inp-move-custom-subfolder" placeholder="Yeni bir klasör yolu yazın..." style="width: 100%; background: hsl(var(--bg-panel)); color: #fff; border: 1px solid var(--glass-border); padding: 8px; border-radius: 6px;">
+        </div>
+
+        <!-- Overwrite Warning Section (Hidden by default) -->
+        <div id="move-overwrite-warning" style="display:none; background:rgba(255, 56, 96, 0.1); border:1px solid hsl(var(--retro-red)); padding:12px; border-radius:6px; margin-top:5px;">
+          <h4 style="color:hsl(var(--retro-red)); font-family:var(--font-tech); font-size:0.8rem; margin:0 0 8px 0; display:flex; align-items:center; gap:6px;">⚠️ Üzerine Yazılacak Dosyalar</h4>
+          <ul id="move-overwrite-list" style="margin:0; padding-left:18px; font-size:0.75rem; color:#fff; display:flex; flex-direction:column; gap:4px; max-height: 120px; overflow-y: auto;"></ul>
+          <p style="font-size:0.75rem; color:var(--text-secondary); margin:8px 0 0 0;">Devam ederseniz yukarıdaki hedef dosyaların üzerine yazılacaktır. Onaylıyor musunuz?</p>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding:15px 20px; display:flex; justify-content:flex-end; gap:10px; border-top:1px solid rgba(255,255,255,0.05);">
+        <button class="filter-btn" id="btn-cancel-move" style="font-size:0.8rem; padding:8px 16px; cursor:pointer">İptal</button>
+        <button class="save-btn" id="btn-confirm-move" style="font-size:0.8rem; padding:8px 16px; cursor:pointer">Taşıma İşlemini Başlat</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal 2: Online Scraper Match Selector -->
   <div class="modal-overlay" id="scrape-modal">
     <div class="modal-container">
@@ -505,6 +544,7 @@
       <button class="filter-btn" id="btn-bulk-select-all" style="font-size:0.75rem; padding:6px 12px; cursor:pointer">Hepsini Seç</button>
       <button class="filter-btn" id="btn-bulk-deselect" style="font-size:0.75rem; padding:6px 12px; cursor:pointer">Seçimi Kaldır</button>
       <button class="scrape-btn" id="btn-bulk-scrape-selected" style="background:rgba(0, 243, 255, 0.15); border:1px solid hsl(var(--retro-cyan)); color:#fff; font-size:0.75rem; padding:6px 14px; box-shadow:none; height:auto; cursor:pointer">🔍 Seçilenleri Scrape Et</button>
+      <button class="scrape-btn" id="btn-bulk-move" style="background:rgba(0, 243, 255, 0.15); border:1px solid hsl(var(--retro-cyan)); color:#fff; font-size:0.75rem; padding:6px 14px; box-shadow:none; height:auto; cursor:pointer">📦 Seçilenleri Taşı</button>
       <button class="scrape-btn" id="btn-bulk-delete" style="background:rgba(255, 56, 96, 0.15); border:1px solid hsl(var(--retro-red)); color:#fff; font-size:0.75rem; padding:6px 14px; box-shadow:none; height:auto; cursor:pointer">🗑️ Seçilenleri Sil</button>
     </div>
   </div>

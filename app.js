@@ -1508,6 +1508,141 @@ function initUIBindings() {
     });
   }
 
+  // --- Game Move (Oyun Taşıma) Bindings (v1.15.0) ---
+  const btnBulkMove = document.getElementById('btn-bulk-move');
+  if (btnBulkMove) {
+    btnBulkMove.addEventListener('click', () => {
+      if (selectedRomsBulk.length === 0) {
+        showToast("Lütfen taşınacak oyunları seçin!", "error");
+        return;
+      }
+      openMoveModal([...selectedRomsBulk]);
+    });
+  }
+
+  const btnCloseMoveModal = document.getElementById('btn-close-move-modal');
+  if (btnCloseMoveModal) {
+    btnCloseMoveModal.addEventListener('click', () => {
+      showMoveModal(false);
+    });
+  }
+
+  const btnCancelMove = document.getElementById('btn-cancel-move');
+  if (btnCancelMove) {
+    btnCancelMove.addEventListener('click', () => {
+      showMoveModal(false);
+    });
+  }
+
+  const btnConfirmMove = document.getElementById('btn-confirm-move');
+  if (btnConfirmMove) {
+    btnConfirmMove.addEventListener('click', async () => {
+      const targetSystemKey = document.getElementById('sel-move-target-system').value;
+      const targetSystem = consoleData[targetSystemKey];
+      if (!targetSystem) return;
+
+      const inpCustomSub = document.getElementById('inp-move-custom-subfolder');
+      const selSubfolder = document.getElementById('sel-move-target-subfolder');
+      let targetSubfolder = inpCustomSub.value.trim();
+      if (targetSubfolder === "") {
+        targetSubfolder = selSubfolder.value;
+      }
+      
+      // Clean targetSubfolder: convert backslashes to forward slashes, remove leading/trailing slashes
+      targetSubfolder = targetSubfolder.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').trim();
+
+      const sourceSystem = consoleData[activeConsole];
+      
+      // Filtreleme: Aynı sistem ve aynı alt klasördeki oyunları taşıma işleminden çıkaralım
+      const gamesToMove = currentGamesToMove.filter(game => {
+        const gameSubfolder = game.subpath || "";
+        const cleanGameSub = gameSubfolder.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').trim();
+        return !(sourceSystem === targetSystem && cleanGameSub === targetSubfolder);
+      });
+
+      if (gamesToMove.length === 0) {
+        showToast("Oyun(lar) zaten seçilen hedef klasörde bulunuyor!", "info");
+        showMoveModal(false);
+        return;
+      }
+
+      // Close modal
+      showMoveModal(false);
+
+      // Show copy progress modal
+      showUploadProgressModal(true, "Oyunlar taşınıyor...", 0);
+
+      // Ensure target system is loaded in memory first!
+      if (!targetSystem.isFullyLoaded) {
+        showUploadProgressModal(true, `${targetSystem.config.displayName} sistemi yükleniyor...`, 5);
+        try {
+          await lazyLoadAndSyncConsole(targetSystem);
+        } catch (err) {
+          console.error("Target system load error:", err);
+          showUploadProgressModal(false);
+          alert(`Hedef sistem (${targetSystem.config.displayName}) yüklenirken hata oluştu: ${err.message}`);
+          return;
+        }
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+      const total = gamesToMove.length;
+
+      for (let i = 0; i < total; i++) {
+        const game = gamesToMove[i];
+        try {
+          showUploadProgressModal(true, `Taşınıyor: ${game.filename} (${i+1}/${total})`, Math.round((i / total) * 100));
+          
+          await moveSingleGame(game, sourceSystem, targetSystem, targetSubfolder);
+          successCount++;
+        } catch (err) {
+          console.error(`Oyun taşınırken hata oluştu: ${game.filename}`, err);
+          failCount++;
+        }
+      }
+
+      // Update progress
+      showUploadProgressModal(true, "Veritabanı güncelleniyor...", 95);
+
+      // Save metadata
+      try {
+        if (currentProfile.metadataStorage === 'sqlite') {
+          await writeSqliteDBFile(sourceSystem);
+          if (targetSystem !== sourceSystem) {
+            await writeSqliteDBFile(targetSystem);
+          }
+        } else if (currentProfile.metadataStorage === 'xml') {
+          await writeGamelistXMLFile(sourceSystem);
+          if (targetSystem !== sourceSystem) {
+            await writeGamelistXMLFile(targetSystem);
+          }
+        }
+      } catch (err) {
+        console.error("Taşıma sonrası veritabanı kaydetme hatası:", err);
+      }
+
+      // Hide progress
+      showUploadProgressModal(false);
+
+      // Reset selection arrays
+      selectedRomsBulk = [];
+      selectedRom = null;
+      clearInspector();
+
+      // Refresh UI
+      renderSidebarConsoles();
+      renderActiveGames();
+      updateBulkActionBarUI();
+
+      if (failCount === 0) {
+        showToast(`${successCount} adet oyun başarıyla taşındı.`, 'success');
+      } else {
+        alert(`Taşıma işlemi tamamlandı.\nBaşarıyla Taşınan: ${successCount}\nHata Alınan: ${failCount}\nLütfen SD kart izinlerinizi kontrol edin.`);
+      }
+    });
+  }
+
   // Bulk Scrape triggers
   const btnSystemBulkScrape = document.getElementById('btn-system-bulk-scrape');
   if (btnSystemBulkScrape) {
@@ -3569,6 +3704,7 @@ async function selectRomForInspection(game, element) {
       <h3 class="inspector-title">ROM Detayları</h3>
       <div style="display:flex; gap:6px">
         <button class="filter-btn" id="delete-rom-btn" style="background:rgba(255, 56, 96, 0.15); border:1px solid hsl(var(--retro-red)); color:#fff; font-size:0.75rem; padding:6px 10px; height:auto; display:flex; align-items:center; gap:4px" title="Oyunu Sil">🗑️ Sil</button>
+        <button class="save-btn" id="move-rom-btn" style="background:rgba(0, 243, 255, 0.15); border:1px solid hsl(var(--retro-cyan)); color:#fff; font-size:0.75rem; padding:6px 10px; height:auto; display:flex; align-items:center; gap:4px" title="Oyunu Başka Klasöre/Sisteme Taşı">📦 Taşı</button>
         <button class="save-btn" id="save-meta-btn">💾 Kaydet</button>
       </div>
     </div>
@@ -3658,6 +3794,10 @@ async function selectRomForInspection(game, element) {
   const deleteRomBtn = document.getElementById('delete-rom-btn');
   if (deleteRomBtn) {
     deleteRomBtn.addEventListener('click', () => deleteSingleRom(game));
+  }
+  const moveRomBtn = document.getElementById('move-rom-btn');
+  if (moveRomBtn) {
+    moveRomBtn.addEventListener('click', () => openMoveModal([game]));
   }
 
   // Carousel controls logic
@@ -6158,20 +6298,20 @@ function updateBulkActionBarUI() {
 }
 
 // Konsol sistemine ait görsel veya video klasör handle'ını dinamik çözer
-async function getSystemDirectoryHandle(system, type) {
+async function getSystemDirectoryHandle(system, type, create = false) {
   try {
     if (type === 'images') {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
-        const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanRoot, { create: false });
-        return await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: false });
+        const imgsRootHandle = await sdCardHandle.getDirectoryHandle(cleanRoot, { create });
+        return await imgsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create });
       } else {
         const imgDirName = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
         const pathParts = imgDirName.split('/');
         let currentHandle = system.dirHandle;
         for (const part of pathParts) {
           if (part) {
-            currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+            currentHandle = await currentHandle.getDirectoryHandle(part, { create });
           }
         }
         return currentHandle;
@@ -6179,21 +6319,22 @@ async function getSystemDirectoryHandle(system, type) {
     } else if (type === 'videos') {
       if (currentProfile.paths.imagesLoc === 'root-separate') {
         const cleanRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
-        const vidsRootHandle = await sdCardHandle.getDirectoryHandle(cleanRoot, { create: false });
-        return await vidsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create: false });
+        const vidsRootHandle = await sdCardHandle.getDirectoryHandle(cleanRoot, { create });
+        return await vidsRootHandle.getDirectoryHandle(getSystemFolderName(system), { create });
       } else {
         const vidDirName = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
         const pathParts = vidDirName.split('/');
         let currentHandle = system.dirHandle;
         for (const part of pathParts) {
           if (part) {
-            currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+            currentHandle = await currentHandle.getDirectoryHandle(part, { create });
           }
         }
         return currentHandle;
       }
     }
   } catch (err) {
+    if (create) throw err;
     // Klasör bulunamazsa varsayılan klasör yollarını dene (Geriye Dönük Uyumluluk)
     try {
       if (type === 'images') {
@@ -6523,4 +6664,425 @@ function showToast(message, type = 'success') {
       container.remove();
     }
   }, 3000);
+}
+
+// ==========================================================================
+// GAME MOVE ENGINE (Sistemler ve Alt Klasörler Arası Taşımalar - v1.15.0)
+// ==========================================================================
+
+let currentGamesToMove = [];
+
+function showMoveModal(show) {
+  const modal = document.getElementById('move-modal');
+  if (modal) {
+    modal.classList.toggle('active', show);
+  }
+}
+
+// Dosyayı File System Access API üzerinden blob olarak kopyalar
+async function copyFile(sourceHandle, destDirHandle, destFileName) {
+  const file = await sourceHandle.getFile();
+  const destFileHandle = await destDirHandle.getFileHandle(destFileName, { create: true });
+  const writable = await destFileHandle.createWritable();
+  await writable.write(file);
+  await writable.close();
+  return destFileHandle;
+}
+
+// Rekürsif klasör varlık kontrolü (üzerine yazma uyarılarında alt klasörleri önceden oluşturmadan kontrol etmek için)
+async function checkDirectoryExists(baseHandle, subpath) {
+  if (!subpath) return baseHandle;
+  const parts = subpath.split('/');
+  let currentHandle = baseHandle;
+  for (const part of parts) {
+    if (part) {
+      try {
+        currentHandle = await currentHandle.getDirectoryHandle(part, { create: false });
+      } catch(e) {
+        return null;
+      }
+    }
+  }
+  return currentHandle;
+}
+
+// Göreli dosya yoluna göre dizini adım adım yürüyüp dosya tanıtıcısını döner
+async function getFileHandleByRelativePath(baseHandle, relativePath, options = { create: false }) {
+  if (!baseHandle || !relativePath) return null;
+  try {
+    let cleanPath = relativePath.trim();
+    if (cleanPath.startsWith('./')) {
+      cleanPath = cleanPath.substring(2);
+    }
+    if (cleanPath.startsWith('/')) {
+      cleanPath = cleanPath.substring(1);
+    }
+    const parts = cleanPath.split('/').filter(p => p !== '');
+    if (parts.length === 0) return null;
+    
+    let currentHandle = baseHandle;
+    for (let i = 0; i < parts.length - 1; i++) {
+      currentHandle = await currentHandle.getDirectoryHandle(parts[i], options);
+    }
+    const filename = parts[parts.length - 1];
+    return await currentHandle.getFileHandle(filename, options);
+  } catch (err) {
+    return null;
+  }
+}
+
+// Bir oyuna ait tüm olası disk üzerindeki ilişkili resim ve video dosyalarını asenkron olarak bulur
+async function getAssociatedMediaHandles(system, game) {
+  const mediaFiles = [];
+  
+  // 1. Doğrudan localImagePath kontrolü
+  if (game.localImagePath) {
+    try {
+      const isRootSeparate = currentProfile.paths.imagesLoc === 'root-separate';
+      const baseHandle = isRootSeparate ? sdCardHandle : system.dirHandle;
+      const fileHandle = await getFileHandleByRelativePath(baseHandle, game.localImagePath, { create: false });
+      if (fileHandle) {
+        const baseImgName = game.localImagePath.split('/').pop();
+        mediaFiles.push({
+          handle: fileHandle,
+          type: 'image',
+          filename: baseImgName
+        });
+      }
+    } catch(e) {}
+  }
+
+  // 2. Doğrudan video yolu kontrolü
+  if (game.video) {
+    try {
+      const isRootSeparate = currentProfile.paths.imagesLoc === 'root-separate';
+      const baseHandle = isRootSeparate ? sdCardHandle : system.dirHandle;
+      const fileHandle = await getFileHandleByRelativePath(baseHandle, game.video, { create: false });
+      if (fileHandle) {
+        const baseVidName = game.video.split('/').pop();
+        mediaFiles.push({
+          handle: fileHandle,
+          type: 'video',
+          filename: baseVidName
+        });
+      }
+    } catch(e) {}
+  }
+
+  // 3. Akıllı ad eşleştirme (görsel yolu eksikse veya önbelleğe alınmamışsa)
+  try {
+    const baseName = game.filename.substring(0, game.filename.lastIndexOf('.'));
+    // Eğer baseName içinde alt klasör varsa (örn: RPG/Pokemon), hem alt klasörlü hem de flat halini deneyelim
+    const baseRomNameOnly = baseName.split('/').pop();
+    const namesToTry = [baseName, baseRomNameOnly];
+    
+    const sysImgsHandle = await getSystemDirectoryHandle(system, 'images');
+    if (sysImgsHandle) {
+      const suffixes = ["", "-image", "-marquee", "-thumb", "-boxart", "-titlescreen", "-screenshot"];
+      const extensions = ["png", "jpg", "jpeg", "gif", "PNG", "JPG", "JPEG"];
+      
+      for (const name of namesToTry) {
+        let nameFound = false;
+        for (const suffix of suffixes) {
+          for (const ext of extensions) {
+            try {
+              const fileHandle = await getFileHandleByRelativePath(sysImgsHandle, `${name}${suffix}.${ext}`, { create: false });
+              if (fileHandle) {
+                const finalFilename = `${name}${suffix}.${ext}`.split('/').pop();
+                // Çift eklemeyi önle
+                if (!mediaFiles.some(m => m.filename === finalFilename)) {
+                  mediaFiles.push({
+                    handle: fileHandle,
+                    type: 'image',
+                    filename: finalFilename
+                  });
+                }
+                nameFound = true;
+                break; // Bu sonek bulundu, diğer uzantıları atla
+              }
+            } catch(e) {}
+          }
+        }
+        if (nameFound) break; // Eğer alt klasörlü ismi bulduysak, flat olanını aramaya gerek yok
+      }
+    }
+  } catch(e) {}
+
+  // 4. Video akıllı ad eşleştirme (video yolu eksikse)
+  if (!game.video) {
+    try {
+      const baseName = game.filename.substring(0, game.filename.lastIndexOf('.'));
+      const baseRomNameOnly = baseName.split('/').pop();
+      const namesToTry = [baseName, baseRomNameOnly];
+      
+      const sysVidsHandle = await getSystemDirectoryHandle(system, 'videos');
+      if (sysVidsHandle) {
+        const extensions = ["mp4", "mkv", "avi", "MP4", "MKV", "AVI"];
+        for (const name of namesToTry) {
+          let videoFound = false;
+          for (const ext of extensions) {
+            try {
+              const fileHandle = await getFileHandleByRelativePath(sysVidsHandle, `${name}.${ext}`, { create: false });
+              if (fileHandle) {
+                const finalFilename = `${name}.${ext}`.split('/').pop();
+                if (!mediaFiles.some(m => m.filename === finalFilename)) {
+                  mediaFiles.push({
+                    handle: fileHandle,
+                    type: 'video',
+                    filename: finalFilename
+                  });
+                }
+                videoFound = true;
+                break;
+              }
+            } catch(e) {}
+          }
+          if (videoFound) break;
+        }
+      }
+    } catch(e) {}
+  }
+
+  return mediaFiles;
+}
+
+// Taşıma öncesi hedef yolda çakışan (üzerine yazılacak) dosyaları listeler
+async function checkMoveOverwrites(games, targetSystemKey, targetSubfolder) {
+  const overwriteList = document.getElementById('move-overwrite-list');
+  const warningPanel = document.getElementById('move-overwrite-warning');
+  if (!overwriteList || !warningPanel) return;
+
+  overwriteList.innerHTML = '';
+  warningPanel.style.display = 'none';
+
+  const targetSystem = consoleData[targetSystemKey];
+  if (!targetSystem) return;
+
+  const overwritingFiles = [];
+  const sourceSystem = consoleData[activeConsole];
+
+  const targetDirHandle = await checkDirectoryExists(targetSystem.dirHandle, targetSubfolder);
+  
+  let targetImgsHandle = null;
+  let targetVidsHandle = null;
+  try {
+    targetImgsHandle = await getSystemDirectoryHandle(targetSystem, 'images');
+  } catch(e) {}
+  try {
+    targetVidsHandle = await getSystemDirectoryHandle(targetSystem, 'videos');
+  } catch(e) {}
+
+  for (const game of games) {
+    const baseRomName = game.filename.split('/').pop();
+
+    // ROM çakışma denetimi
+    if (targetDirHandle) {
+      try {
+        await targetDirHandle.getFileHandle(baseRomName, { create: false });
+        overwritingFiles.push(`[ROM] ${targetSubfolder ? targetSubfolder + '/' : ''}${baseRomName}`);
+      } catch(e) {}
+    }
+
+    // İlişkili medya çakışma denetimi
+    const mediaFiles = await getAssociatedMediaHandles(sourceSystem, game);
+    for (const media of mediaFiles) {
+      if (media.type === 'image' && targetImgsHandle) {
+        try {
+          await targetImgsHandle.getFileHandle(media.filename, { create: false });
+          overwritingFiles.push(`[Görsel] ${targetSystem.config.displayName} images/${media.filename}`);
+        } catch(e) {}
+      } else if (media.type === 'video' && targetVidsHandle) {
+        try {
+          await targetVidsHandle.getFileHandle(media.filename, { create: false });
+          overwritingFiles.push(`[Video] ${targetSystem.config.displayName} videos/${media.filename}`);
+        } catch(e) {}
+      }
+    }
+  }
+
+  if (overwritingFiles.length > 0) {
+    overwritingFiles.forEach(file => {
+      const li = document.createElement('li');
+      li.textContent = file;
+      overwriteList.appendChild(li);
+    });
+    warningPanel.style.display = 'block';
+  }
+}
+
+// Tek bir oyunu ve tüm medyalarını taşımayı yöneten çekirdek fonksiyon (Safe Copy-then-Delete)
+async function moveSingleGame(game, sourceSystem, targetSystem, targetSubfolder) {
+  const baseRomName = game.filename.split('/').pop();
+  
+  // 1. Hedef dizin handle'ını çöz (yoksa oluştur)
+  const targetDirHandle = await resolveSubpathDirectoryHandle(targetSystem.dirHandle, targetSubfolder);
+  
+  // 2. ROM dosyasını hedefe kopyala
+  const destRomHandle = await copyFile(game.fileHandle, targetDirHandle, baseRomName);
+  
+  // 3. Hedef medya klasörlerini çöz/oluştur
+  const targetImgsHandle = await getSystemDirectoryHandle(targetSystem, 'images', true);
+  const targetVidsHandle = await getSystemDirectoryHandle(targetSystem, 'videos', true);
+  
+  // 4. Medya dosyalarını kopyala
+  const mediaFiles = await getAssociatedMediaHandles(sourceSystem, game);
+  for (const media of mediaFiles) {
+    if (media.type === 'image' && targetImgsHandle) {
+      await copyFile(media.handle, targetImgsHandle, media.filename);
+    } else if (media.type === 'video' && targetVidsHandle) {
+      await copyFile(media.handle, targetVidsHandle, media.filename);
+    }
+  }
+  
+  // 5. Göreli yeni medya yollarını hedef sisteme göre hesapla
+  let newLocalImagePath = "";
+  if (game.localImagePath) {
+    const baseImgName = game.localImagePath.split('/').pop();
+    if (currentProfile.paths.imagesLoc === 'root-separate') {
+      const cleanRoot = (currentProfile.paths.imagesRoot || "Imgs").replace(/^\//, '').replace(/\/$/, '');
+      newLocalImagePath = `/${cleanRoot}/${getSystemFolderName(targetSystem)}/${baseImgName}`;
+    } else {
+      const cleanRoot = (currentProfile.paths.imagesRoot || "images").replace(/^\.\//, '').replace(/\/$/, '');
+      newLocalImagePath = `./${cleanRoot}/${baseImgName}`;
+    }
+  }
+  
+  let newVideoPath = "";
+  if (game.video) {
+    const baseVidName = game.video.split('/').pop();
+    if (currentProfile.paths.imagesLoc === 'root-separate') {
+      const cleanRoot = (currentProfile.paths.videosRoot || "Videos").replace(/^\//, '').replace(/\/$/, '');
+      newVideoPath = `/${cleanRoot}/${getSystemFolderName(targetSystem)}/${baseVidName}`;
+    } else {
+      const cleanRoot = (currentProfile.paths.videosRoot || "videos").replace(/^\.\//, '').replace(/\/$/, '');
+      newVideoPath = `./${cleanRoot}/${baseVidName}`;
+    }
+  }
+  
+  const targetNewGameFilename = targetSubfolder ? `${targetSubfolder}/${baseRomName}` : baseRomName;
+  
+  // 6. Hedef sistemin hafıza durumuna oyunu ekle
+  const newGame = {
+    ...game,
+    filename: targetNewGameFilename,
+    subpath: targetSubfolder,
+    fileHandle: destRomHandle,
+    localImagePath: newLocalImagePath,
+    image: newLocalImagePath ? "" : game.image, // Liste yeniden yüklendiğinde blob URL'si çözülecektir
+    video: newVideoPath
+  };
+  delete newGame.dbRomPath; // Hedef sisteme göre yeni bir dbRomPath oluşturulabilmesi için temizle
+  
+  targetSystem.games.push(newGame);
+  
+  // 7. Kaynak medyaları ve ROM dosyasını sil
+  await deleteAssociatedMedia(sourceSystem, game);
+  await deleteFileByRelativePath(sourceSystem.dirHandle, game.filename);
+  
+  // 8. SQLite veritabanı kullanılıyorsa kaynak veritabanından satırı sil
+  if (currentProfile.metadataStorage === 'sqlite' && sourceSystem.sqliteDB) {
+    const db = sourceSystem.sqliteDB;
+    const dbConfig = currentProfile.sqliteConfig;
+    const cols = dbConfig.columns;
+    const sysId = sourceSystem.config.id;
+    const sysFolder = sourceSystem.dirHandle.name;
+    const tableName = (dbConfig.tableName || "roms")
+      .replace(/{SYSTEM}/g, sysFolder)
+      .replace(/{system}/g, sysId);
+    const targetPath = game.dbRomPath || `./${game.filename}`;
+    try {
+      db.run(`DELETE FROM "${tableName}" WHERE "${cols.filename}" = :romPath`, { ':romPath': targetPath });
+      
+      const checkQuery2 = `SELECT "${cols.filename}" FROM "${tableName}"`;
+      const checkResult2 = db.exec(checkQuery2);
+      if (checkResult2 && checkResult2.length > 0) {
+        for (const val of checkResult2[0].values) {
+          const pathInDb = val[0];
+          if (cleanPathForMatching(pathInDb) === cleanPathForMatching(game.filename)) {
+            db.run(`DELETE FROM "${tableName}" WHERE "${cols.filename}" = :romPath`, { ':romPath': pathInDb });
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
+  // 9. Kaynak sistemin hafıza durumundan oyunu temizle
+  sourceSystem.games = sourceSystem.games.filter(g => g !== game);
+}
+
+// Taşıma modal penceresini açar ve dropdown listelerini doldurur
+async function openMoveModal(games) {
+  currentGamesToMove = games;
+  if (currentGamesToMove.length === 0) return;
+
+  const selSystem = document.getElementById('sel-move-target-system');
+  const inpCustomSub = document.getElementById('inp-move-custom-subfolder');
+  if (!selSystem || !inpCustomSub) return;
+
+  // Temizlik
+  inpCustomSub.value = "";
+
+  // Sistemleri doldur
+  selSystem.innerHTML = '';
+  for (const key in consoleData) {
+    const sys = consoleData[key];
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = `${sys.config.logo} ${sys.config.displayName}`;
+    if (key === activeConsole) {
+      opt.selected = true;
+    }
+    selSystem.appendChild(opt);
+  }
+
+  // Alt klasör listesini doldurma yardımı
+  const populateSubfolders = () => {
+    const targetKey = selSystem.value;
+    const targetSystem = consoleData[targetKey];
+    const selSubfolder = document.getElementById('sel-move-target-subfolder');
+    if (!selSubfolder || !targetSystem) return;
+
+    selSubfolder.innerHTML = '';
+    const rootOpt = document.createElement('option');
+    rootOpt.value = "";
+    rootOpt.textContent = "[Kök Dizin]";
+    selSubfolder.appendChild(rootOpt);
+
+    const subfolders = targetSystem.subfolders || [];
+    subfolders.forEach(sub => {
+      const opt = document.createElement('option');
+      opt.value = sub;
+      opt.textContent = sub;
+      selSubfolder.appendChild(opt);
+    });
+  };
+
+  populateSubfolders();
+
+  // Çakışma denetimi tetikleyicisi
+  const triggerOverwriteCheck = async () => {
+    const targetKey = selSystem.value;
+    let targetSub = inpCustomSub.value.trim();
+    if (targetSub === "") {
+      targetSub = document.getElementById('sel-move-target-subfolder').value;
+    }
+    await checkMoveOverwrites(currentGamesToMove, targetKey, targetSub);
+  };
+
+  // Dinleyicileri modal açıkken yeniden bağla
+  selSystem.onchange = () => {
+    populateSubfolders();
+    triggerOverwriteCheck();
+  };
+  
+  const selSubfolder = document.getElementById('sel-move-target-subfolder');
+  if (selSubfolder) {
+    selSubfolder.onchange = triggerOverwriteCheck;
+  }
+  inpCustomSub.oninput = triggerOverwriteCheck;
+
+  // İlk denetimi yap
+  await triggerOverwriteCheck();
+
+  showMoveModal(true);
 }
