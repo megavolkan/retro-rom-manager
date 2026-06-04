@@ -937,7 +937,7 @@ function getConsoleManufacturer(consoleId) {
   if (['snes', 'sfc', 'gba', 'nes', 'fc', 'gb', 'gbc', 'n64', 'nds', 'nds_arm9', 'wii', 'gamecube', 'virtualboy', 'pokemini'].includes(cid)) {
     return { name: 'Nintendo', logo: '🔴' };
   }
-  if (['megadrive', 'genesis', 'sega32x', 'segacd', 'sms', 'gg', 'sega', 'dreamcast', 'saturn', 'sg1000'].includes(cid)) {
+  if (['megadrive', 'genesis', 'sega32x', 'segacd', 'sms', 'gg', 'sega', 'dc', 'dreamcast', 'saturn', 'sg1000'].includes(cid)) {
     return { name: 'Sega', logo: '🔵' };
   }
   if (['psx', 'ps1', 'psp', 'ps2', 'pspminis'].includes(cid)) {
@@ -956,7 +956,7 @@ function getConsoleManufacturer(consoleId) {
     return { name: 'Bandai', logo: '📟' };
   }
   
-  return { name: 'Retro PC & Diğer', logo: '🖥️' };
+  return { name: 'Arcade', logo: '👾' };
 }
 
 // --- Initializer ---
